@@ -1,3 +1,5 @@
+import  httpRequest  from "./utils/httpRequest.js";
+
 // Auth Modal Functionality
 document.addEventListener("DOMContentLoaded", function () {
     // Get DOM elements
@@ -114,6 +116,7 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 // Other functionality
-document.addEventListener("DOMContentLoaded", function () {
-    // TODO: Implement other functionality here
+document.addEventListener("DOMContentLoaded", async () => {
+    const artists = await httpRequest.get('artists');
+    console.log(artists);
 });

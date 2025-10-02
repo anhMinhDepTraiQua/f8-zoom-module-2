@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Trang hồ sơ - Chỉnh sửa ảnh, tên, mật khẩu</title>
+  <link rel="stylesheet" href="profile.css">
+</head>
+    <link rel="stylesheet" href="css/layout.css" />
+    <link rel="stylesheet" href="css/components.css" />
+    <link rel="stylesheet" href="css/user.css" />
+    <link rel="stylesheet" href="css/reset.css">
+<body>
+  <div class="container" role="main">
+    <h1>Chỉnh sửa hồ sơ</h1>
+
+    <div class="grid">
+      <div class="avatar-card" aria-label="Ảnh đại diện">
+        <div class="avatar-preview" id="avatarPreview" title="Ảnh đại diện hiện tại">
+          <!-- default avatar -->
+          <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320'><rect width='100%' height='100%' fill='%23eef2ff'/><text x='50%' y='54%' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='72' fill='%23333'>NG</text></svg>" alt="avatar">
+        </div>
+
+        <div class="avatar-actions">
+          <label for="avatarInput" class="btn btn-ghost">Chọn ảnh
+            <input id="avatarInput" type="file" accept="image/*" hidden>
+          </label>
+
+          <button type="button" id="removeAvatar" class="btn btn-remove">Xóa</button>
+          <div class="note">Hỗ trợ JPG/PNG. Kích thước tối ưu: 400×400px. Dung lượng tối đa: 5MB.</div>
+        </div>
+      </div>
+
+      <div>
+        <form id="profileForm" novalidate>
+          <div class="field">
+            <label for="displayName">Tên hiển thị</label>
+            <input id="displayName" name="displayName" type="text" placeholder="Nhập tên hiển thị" required>
+            <div id="nameHelp" class="inline-note">Tên sẽ hiển thị công khai.</div>
+          </div>
+
+          <fieldset>
+            <legend>Đổi mật khẩu</legend>
+            <div class="field">
+              <label for="currentPassword">Mật khẩu hiện tại</label>
+              <input id="currentPassword" name="currentPassword" type="password" placeholder="Nhập mật khẩu hiện tại">
+            </div>
+            <div class="field row">
+              <div class="col">
+                <label for="newPassword">Mật khẩu mới</label>
+                <input id="newPassword" name="newPassword" type="password" placeholder="Ít nhất 8 ký tự">
+              </div>
+              <div class="col">
+                <label for="confirmPassword">Xác nhận mật khẩu mới</label>
+                <input id="confirmPassword" name="confirmPassword" type="password" placeholder="Nhập lại mật khẩu mới">
+              </div>
+            </div>
+            <div id="pwdHelp" class="inline-note">Bạn chỉ cần điền phần đổi mật khẩu nếu muốn thay đổi.</div>
+            <div id="pwdError" class="error" role="alert" aria-live="polite" style="display:none"></div>
+          </fieldset>
+
+          <div class="actions">
+            <button id="saveBtn" class="btn btn-primary" type="submit">Lưu thay đổi</button>
+            <button id="cancelBtn" type="button" class="btn">Hủy</button>
+            <div id="status"></div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="user.js">
+  </script>
+</body>
+</html>

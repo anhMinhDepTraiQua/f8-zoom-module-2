@@ -494,7 +494,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const playerImage = document.querySelector(".player-image")
   const playerTitle = document.querySelector(".player-title")
   const playerArtist = document.querySelector(".player-artist")
-
+  const favTitle = document.querySelector(".fav-title")
   // Player state
   let isPlaying = false
   let isShuffle = false
@@ -523,6 +523,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (playerTitle) {
       playerTitle.textContent = track.title
+    }
+    if (favTitle){
+      favTitle.textContent = `${track.title} spotify`
     }
     if (playerArtist) {
       playerArtist.textContent = track.artist_name || "Unknown Artist"

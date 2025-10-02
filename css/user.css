@@ -1,0 +1,45 @@
+:root{
+  --bg:#f6f8fa; --card:#ffffff; --muted:#6b7280; --accent:#2563eb; --danger:#dc2626;
+  --radius:10px; --gap:16px; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+html,body{height:100%;}
+body{
+  margin:0; background:var(--bg); display:flex; align-items:center; justify-content:center; padding:24px;
+}
+.container{width:100%; max-width:920px; background:var(--card); border-radius:var(--radius); box-shadow:0 6px 24px rgba(16,24,40,.08); padding:28px;}
+h1{margin:0 0 6px 0; font-size:20px}
+.grid{display:grid; grid-template-columns:260px 1fr; gap:var(--gap);} 
+
+.avatar-card{display:flex; flex-direction:column; align-items:center; gap:12px; padding:14px; border-radius:8px; background:linear-gradient(180deg,#fff,#fbfdff);}
+.avatar-preview{width:160px; height:160px; border-radius:50%; overflow:hidden; display:flex; align-items:center; justify-content:center; background:#eef2ff; border:6px solid #fff}
+.avatar-preview img{width:100%; height:100%; object-fit:cover; display:block}
+.btn{display:inline-flex; align-items:center; gap:8px; border:0; cursor:pointer; padding:10px 12px; border-radius:10px; font-weight:600}
+.btn-primary{background:var(--accent); color:#fff}
+.btn-ghost{background:transparent; color:var(--accent); border:1px solid rgba(37,99,235,.12)}
+.btn-remove{background:#fff; border:1px solid #eee}
+.muted{color:var(--muted); font-size:13px}
+.note{font-size:13px; color:var(--muted); text-align:center}
+.field {margin-top: 15px;}
+form{display:flex; flex-direction:column; gap:16px}
+.field{display:flex; flex-direction:column; gap:8px}
+label{font-size:13px; color:#111827}
+input[type="text"], input[type="password"], input[type="file"]{padding:12px 14px; border-radius:10px; border:1px solid #e6e9ef; background:#fff; font-size:14px}
+.row{display:flex; gap:12px}
+.col{flex:1}
+.inline-note{font-size:13px; color:var(--muted)}
+.error{color:var(--danger); font-size:13px}
+.success{color:green; font-size:13px}
+
+.actions{display:flex; gap:12px; align-items:center; margin-top:8px}
+#status{margin-left:12px}
+
+fieldset{border:0;padding:0;margin:0;}
+legend{font-weight:700;margin-bottom:6px}
+
+.avatar-actions{display:flex;flex-direction:column;align-items:center; gap:8px;}
+
+@media (max-width:760px){
+  .grid{grid-template-columns:1fr;}
+  .avatar-card{flex-direction:row; padding:12px;}
+  .avatar-preview{width:88px;height:88px;border-width:4px}
+}

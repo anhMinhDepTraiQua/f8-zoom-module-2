@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Đen - Spotify</title>
+        <title class="fav-title">Spotify</title>
         <!-- Font Awesome CDN -->
         <link
             rel="stylesheet"
@@ -149,6 +149,18 @@
                             </button>
                             </div>
                             <div class="user-dropdown" id="userDropdown">
+                                <div class="dropdown-item" id="profileBtn">
+                                    <i class="fa-solid fa-user"></i>
+                                    <a href="user.html" target="_blank">account</a>
+                                </div>
+                                <div class="dropdown-item" id="settingsBtn">
+                                    <i class="fa-solid fa-crown"></i>
+                                    <span>Premium</span>
+                                </div>
+                                <div class="dropdown-item" id="settingsBtn">
+                                    <i class="fa-solid fa-gear"></i>
+                                    <span>Settings</span>
+                                </div>
                                 <div class="dropdown-item" id="logoutBtn">
                                     <i class="fas fa-sign-out-alt"></i>
                                     <span>Log out</span>

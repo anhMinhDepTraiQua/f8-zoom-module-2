@@ -632,7 +632,7 @@
 .progress-handle,
 .volume-handle {
     position: absolute;
-    right: -6px;
+    right: 22px;
     top: 50%;
     transform: translateY(-50%);
     width: 12px;
@@ -1109,4 +1109,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     font-weight: 400;
+}
+#logoutBtn{
+    border-top: 1px solid var(--border-color);
 }

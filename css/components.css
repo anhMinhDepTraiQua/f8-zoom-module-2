@@ -820,7 +820,22 @@
     color: #f87171;
     font-size: 14px;
 }
-
+.fa-eye {
+    position: absolute;
+    top: 60%;
+    right: 40px;
+    
+    cursor: pointer;
+    color: var(--text-muted);
+}
+.fa-eye-slash {
+    position: absolute;
+    top: 60%;
+    right: 40px;
+    
+    cursor: pointer;
+    color: var(--text-muted);
+}
 .error-message i {
     font-size: 14px;
     flex-shrink: 0;
@@ -828,13 +843,10 @@
 
 /* Invalid State */
 .form-group.invalid .form-input {
-    border-color: #f87171;
     background-color: var(--bg-tertiary);
 }
 
-.form-group.invalid .error-message {
-    display: flex;
-}
+
 
 /* Submit Button */
 .auth-submit-btn {

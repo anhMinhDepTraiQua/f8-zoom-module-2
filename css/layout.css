@@ -100,11 +100,27 @@
 }
 
 .auth-buttons {
-    display: flex;
+    display: none;
     align-items: center;
     gap: var(--spacing-md);
+    transition: opacity 0.3s ease, visibility 0.3s ease;
 }
-
+.auth-buttons.show {
+    display: flex;
+    opacity: 1;
+    visibility: visible;
+}
+.user-info {
+    display: none;
+    align-items: center;
+    gap: var(--spacing-md);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+.user-info.show {
+    display: flex;
+}
 .content-wrapper {
     flex: 1;
     padding: 0 var(--spacing-lg) var(--spacing-lg);
@@ -235,4 +251,71 @@
 ::-webkit-scrollbar-thumb:hover {
     background: var(--bg-hover);
     background-clip: content-box;
+}
+.tool-tips {
+    position: absolute;
+    bottom: 113px;
+    display: flex;
+    gap: 10px;
+}
+.tool-tips .tooltip {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    padding: 5px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    white-space: nowrap;
+    transform: translateY(10px);
+    transition: opacity var(--transition-fast), transform var(--transition-fast);
+    pointer-events: none;
+}
+.shuffle {
+    opacity: 0;
+    position: absolute;
+    left: -30px;
+}
+.previous {
+    opacity: 0;
+    position: absolute;
+    left: 25px;
+}
+.play-pause {
+    opacity: 0;
+    position: absolute;
+    left: 68px;
+}
+.next {
+    opacity: 0;
+    position: absolute;
+    left: 120px;
+}
+.repeat {
+    opacity: 0;
+    position: absolute;
+    left: 135px;
+}
+.show{
+    opacity: 1;
+    transform: translateY(0);
+}
+.player-controls > button:nth-of-type(1):hover ~ .tool-tips .shuffle {
+  opacity: 1;
+  visibility: visible;
+}
+
+.player-controls > button:nth-of-type(2):hover ~ .tool-tips .previous {
+  opacity: 1;
+  visibility: visible;
+}
+.player-controls > button:nth-of-type(3):hover ~ .tool-tips .play-pause {
+  opacity: 1;
+  visibility: visible;
+}
+.player-controls > button:nth-of-type(4):hover ~ .tool-tips .next {
+  opacity: 1;
+  visibility: visible;
+}
+.player-controls > button:nth-of-type(5):hover ~ .tool-tips .repeat {
+  opacity: 1;
+  visibility: visible;
 }

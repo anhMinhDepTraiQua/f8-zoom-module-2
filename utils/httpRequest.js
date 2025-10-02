@@ -3,7 +3,7 @@ class HttpRequest {
         this.baseUrl = 'https://spotify.f8team.dev/api/';
     }
 
-    async _send(method, path, data = null, options = {}) {
+    async _send(method, path, data, options = {}) {
         try {
             const _options = {
                 ...options,
@@ -13,21 +13,27 @@ class HttpRequest {
                     'Content-Type':'application/json',
                 }
             };
-
             if (data) {
                 _options.body = JSON.stringify(data);
             }
-
+            const accessToken = localStorage.getItem('access_token');
+            if (accessToken) {
+                _options.headers['Authorization'] = `Bearer ${accessToken}`;
+            }
             const res = await fetch(`${this.baseUrl}${path}`, _options);
-
+            const response = await res.json();
             if (!res.ok) {
-                throw new Error(`HTTP error! status: ${res.status}`);
+                const error = new Error(`HTTP error! status: ${res.status}`);
+                error.response = response;
+                error.status = res.status;
+                throw error;
             }
 
-            return await res.json();
+            return response;
 
         } catch (error) {
             console.error(error);
+            throw error;
         }
     }
 

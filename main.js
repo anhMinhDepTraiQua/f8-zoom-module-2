@@ -3,6 +3,7 @@ import httpRequest from "./utils/httpRequest.js"
 // Auth Modal Functionality
 document.addEventListener("DOMContentLoaded", () => {
   // Get DOM elements
+  const spotifyIcon = document.querySelector(".logo")
   const signupBtn = document.querySelector(".signup-btn")
   const loginBtn = document.querySelector(".login-btn")
   const authModal = document.getElementById("authModal")
@@ -15,9 +16,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const errorText = document.querySelector(".error-text")
   const errorMessage = document.querySelector(".error-message")
   const controlBtn = document.querySelector(".control-btn")
-  //tooltips functionality
 
   // home button functionality
+  spotifyIcon.addEventListener("click", ()=>{
+    window.location.href = "index.html"
+  }
+  )
   homeBtn.addEventListener("click", () => {
     window.location.href = "index.html" // Redirect to homepage
   })

@@ -1,3 +1,4 @@
+// đây là main.js
 import httpRequest from "./utils/httpRequest.js"
 
 // Auth Modal Functionality
@@ -15,21 +16,21 @@ document.addEventListener("DOMContentLoaded", () => {
   const homeBtn = document.querySelector(".home-btn")
   const errorText = document.querySelector(".error-text")
   const errorMessage = document.querySelector(".error-message")
-  const controlBtn = document.querySelector(".control-btn")
 
   // home button functionality
-  spotifyIcon.addEventListener("click", ()=>{
+  spotifyIcon.addEventListener("click", () => {
     window.location.href = "index.html"
-  }
-  )
-  homeBtn.addEventListener("click", () => {
-    window.location.href = "index.html" // Redirect to homepage
   })
+  homeBtn.addEventListener("click", () => {
+    window.location.href = "index.html"
+  })
+
   // Function to show signup form
   function showSignupForm() {
     signupForm.style.display = "block"
     loginForm.style.display = "none"
   }
+
   // Function to show login form
   function showLoginForm() {
     signupForm.style.display = "none"
@@ -39,7 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Function to open modal
   function openModal() {
     authModal.classList.add("show")
-    document.body.style.overflow = "hidden" // Prevent background scrolling
+    document.body.style.overflow = "hidden"
   }
 
   // Open modal with Sign Up form when clicking Sign Up button
@@ -57,7 +58,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Close modal function
   function closeModal() {
     authModal.classList.remove("show")
-    document.body.style.overflow = "auto" // Restore scrolling
+    document.body.style.overflow = "auto"
   }
 
   // Close modal when clicking close button
@@ -86,7 +87,7 @@ document.addEventListener("DOMContentLoaded", () => {
   showSignupBtn.addEventListener("click", () => {
     showSignupForm()
   })
-  // ...existing code...
+
   const togglePassword = document.querySelector("#togglePassword")
   const password = document.querySelector("#signupPassword")
   if (togglePassword && password) {
@@ -121,7 +122,7 @@ document.addEventListener("DOMContentLoaded", () => {
     e.target.querySelector("#signupPassword").addEventListener("focus", () => {
       errorMessage.style.display = "none"
     })
-    /////////////////////////////////////////////////////////////////////
+
     try {
       const { user, access_token } = await httpRequest.post("auth/register", credentials)
       localStorage.setItem("access_token", access_token)
@@ -268,6 +269,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     authButtons.classList.add("show")
   }
 })
+
 function updateCurrentUser(user) {
   const userName = document.getElementById("user-name")
   const userAvatarImg = document.getElementById("user-avatar")
@@ -278,6 +280,7 @@ function updateCurrentUser(user) {
     userName.textContent = user.username
   }
 }
+
 // hiển thị popular artists
 async function fetchAndRenderTrendingArtists() {
   try {
@@ -309,6 +312,7 @@ async function fetchAndRenderTrendingArtists() {
 function createArtistCard(artist) {
   const card = document.createElement("div")
   card.className = "artist-card"
+  card.dataset.artistId = artist.id // Store artist ID for navigation
 
   card.innerHTML = `
     <div class="artist-card-cover">
@@ -326,13 +330,196 @@ function createArtistCard(artist) {
     </div>
   `
 
+  card.addEventListener("click", (e) => {
+    // Prevent navigation if clicking the play button
+    if (!e.target.closest(".artist-play-btn")) {
+      showArtistProfile(artist.id)
+    }
+  })
+
   return card
+}
+
+async function showArtistProfile(artistId) {
+  try {
+    console.log("[v0] Loading artist profile for ID:", artistId)
+    currentArtistId = artistId
+    isShowingArtistProfile = true
+
+    // Ẩn các section home
+    const hitsSection = document.querySelector(".hits-section")
+    const artistsSection = document.querySelector(".artists-section")
+    hitsSection.style.display = "none"
+    artistsSection.style.display = "none"
+
+    // Hiển thị các section artist profile
+    const artistHero = document.querySelector(".artist-hero")
+    const artistControls = document.querySelector(".artist-controls")
+    const popularSection = document.querySelector(".popular-section")
+    artistHero.style.display = "block"
+    artistControls.style.display = "flex"
+    popularSection.style.display = "block"
+
+    const backBtn = document.querySelector(".back-btn")
+    if (backBtn) {
+      backBtn.style.display = "flex"
+    }
+
+    // Fetch artist info và popular tracks song song
+    const [artistResponse, tracksResponse] = await Promise.all([
+      httpRequest.get(`artists/${artistId}`),
+      httpRequest.get(`artists/${artistId}/tracks/popular`),
+    ])
+
+    console.log("[v0] Artist response:", artistResponse)
+    console.log("[v0] Tracks response:", tracksResponse)
+
+    const artist = artistResponse
+    const tracks = tracksResponse.tracks || []
+
+    console.log("[v0] Artist data:", artist)
+    console.log("[v0] Tracks data:", tracks)
+
+    if (window.musicPlayer) {
+      window.musicPlayer.playlist = tracks
+    }
+
+    // Cập nhật artist hero
+    const heroBackground = document.querySelector(".hero-background")
+    const heroImage = document.querySelector(".hero-image")
+    const verifiedBadge = document.querySelector(".verified-badge")
+    const artistName = document.querySelector(".artist-name")
+    const monthlyListeners = document.querySelector(".monthly-listeners")
+
+    if (artist.background_image_url) {
+      heroImage.src = artist.background_image_url
+    }
+
+    if (artist.is_verified) {
+      verifiedBadge.style.display = "flex"
+    } else {
+      verifiedBadge.style.display = "none"
+    }
+
+    artistName.textContent = artist.name
+
+    if (artist.monthly_listeners) {
+      monthlyListeners.textContent = `${formatNumber(artist.monthly_listeners)} monthly listeners`
+    }
+
+    // Render popular tracks
+    renderArtistPopularTracks(tracks)
+
+    // Setup play all button
+    const playBtnLarge = document.querySelector(".play-btn-large")
+    playBtnLarge.onclick = () => {
+      if (tracks.length > 0 && window.musicPlayer) {
+        window.musicPlayer.playlist = tracks
+        window.musicPlayer.loadAndPlay(0)
+      }
+    }
+  } catch (error) {
+    console.error("[v0] Error loading artist profile:", error)
+    alert("Failed to load artist profile. Please try again later.")
+    hideArtistProfile()
+  }
+}
+
+function hideArtistProfile() {
+  isShowingArtistProfile = false
+  currentArtistId = null
+
+  // Hiển thị lại các section home
+  const hitsSection = document.querySelector(".hits-section")
+  const artistsSection = document.querySelector(".artists-section")
+  hitsSection.style.display = "block"
+  artistsSection.style.display = "block"
+
+  // Ẩn các section artist profile
+  const artistHero = document.querySelector(".artist-hero")
+  const artistControls = document.querySelector(".artist-controls")
+  const popularSection = document.querySelector(".popular-section")
+  artistHero.style.display = "none"
+  artistControls.style.display = "none"
+  popularSection.style.display = "none"
+
+  const backBtn = document.querySelector(".back-btn")
+  if (backBtn) {
+    backBtn.style.display = "none"
+  }
+
+  fetchAndRenderTodaysBiggestHits()
+}
+
+function renderArtistPopularTracks(tracks) {
+  const trackList = document.querySelector(".popular-section .track-list")
+  trackList.innerHTML = ""
+
+  if (tracks.length === 0) {
+    trackList.innerHTML = '<div class="loading">No tracks available</div>'
+    return
+  }
+
+  tracks.forEach((track, index) => {
+    const trackItem = createArtistTrackItem(track, index + 1)
+    trackList.appendChild(trackItem)
+  })
+}
+
+function createArtistTrackItem(track, position) {
+  const item = document.createElement("div")
+  item.className = "track-item"
+  item.dataset.trackIndex = position - 1
+
+  const duration = formatDuration(track.duration)
+  const playCount = formatNumber(track.play_count)
+
+  item.innerHTML = `
+    <div class="track-number">${position}</div>
+    <div class="track-image">
+      <img
+        src="${track.image_url || "placeholder.svg?height=40&width=40"}"
+        alt="${track.title}"
+      />
+    </div>
+    <div class="track-info">
+      <div class="track-name">${track.title}</div>
+    </div>
+    <div class="track-plays">${playCount}</div>
+    <div class="track-duration">${duration}</div>
+    <button class="track-menu-btn">
+      <i class="fas fa-ellipsis-h"></i>
+    </button>
+  `
+
+  // Click vào track để phát nhạc
+  item.addEventListener("click", () => {
+    if (window.musicPlayer) {
+      window.musicPlayer.loadAndPlay(position - 1)
+    }
+  })
+
+  return item
 }
 
 document.addEventListener("DOMContentLoaded", () => {
   fetchAndRenderTrendingArtists()
+
+  const artistHero = document.querySelector(".artist-hero")
+  const artistControls = document.querySelector(".artist-controls")
+  const popularSection = document.querySelector(".popular-section")
+  if (artistHero) artistHero.style.display = "none"
+  if (artistControls) artistControls.style.display = "none"
+  if (popularSection) popularSection.style.display = "none"
+
+  const backBtn = document.querySelector(".back-btn")
+  if (backBtn) {
+    backBtn.style.display = "none"
+    backBtn.addEventListener("click", hideArtistProfile)
+  }
 })
-//hiển thị popular hits
+
+// hiển thị popular hits
 async function fetchAndRenderPopularTracks() {
   try {
     const popularSection = document.querySelector(".popular-section")
@@ -499,12 +686,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const playerTitle = document.querySelector(".player-title")
   const playerArtist = document.querySelector(".player-artist")
   const favTitle = document.querySelector(".fav-title")
+
   // Player state
   let isPlaying = false
   let isShuffle = false
   let repeatMode = "off" // off, one, all
   let currentVolume = 0.7
   let currentTrackIndex = 0
+
   window.musicPlayer = {
     playlist: [],
     currentTrackIndex: 0,
@@ -528,7 +717,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (playerTitle) {
       playerTitle.textContent = track.title
     }
-    if (favTitle){
+    if (favTitle) {
       favTitle.textContent = `${track.title} spotify`
     }
     if (playerArtist) {
@@ -637,3 +826,6 @@ document.addEventListener("DOMContentLoaded", () => {
     volumeHandle.style.left = `${volumePercentage * 100}%`
   })
 })
+
+let isShowingArtistProfile = false
+let currentArtistId = null

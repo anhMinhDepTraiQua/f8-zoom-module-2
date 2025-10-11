@@ -1,4 +1,3 @@
-//đây là httpRequest.js
 class HttpRequest {
   constructor() {
     this.baseUrl = "https://spotify.f8team.dev/api/"

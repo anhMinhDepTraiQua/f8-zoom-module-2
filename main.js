@@ -126,7 +126,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const { user, access_token } = await httpRequest.post("auth/register", credentials)
       localStorage.setItem("access_token", access_token)
-      localStorage.setItem("currentuser", user)
+      localStorage.setItem("currentuser", JSON.stringify(user))
       updateCurrentUser(user)
       closeModal()
       errorMessage.style.display = "none"
@@ -262,8 +262,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   const authButtons = document.querySelector(".auth-buttons")
   const userInfo = document.querySelector(".user-info")
   try {
-    const { user } = await httpRequest.get("users/me")
-    updateCurrentUser(user)
+const user = JSON.parse(localStorage.getItem("currentuser"))
+if (user) updateCurrentUser(user)
+
     userInfo.classList.add("show")
   } catch (error) {
     authButtons.classList.add("show")
@@ -280,6 +281,83 @@ function updateCurrentUser(user) {
     userName.textContent = user.username
   }
 }
+document.addEventListener("DOMContentLoaded", () => {
+  const userAvatar = document.getElementById("user-avatar");
+  const userName = document.getElementById("user-name");
+
+  // Lấy dữ liệu user mới nhất từ localStorage
+  const storedUser = localStorage.getItem("currentuser");
+  if (storedUser) {
+    try {
+      const user = JSON.parse(storedUser);
+
+      // Cập nhật tên người dùng
+      if (user.username) {
+        userName.textContent = user.username;
+      }
+
+      // Cập nhật avatar
+      if (user.avatar_url) {
+        userAvatar.src = user.avatar_url;
+      } else {
+        // Nếu chưa có ảnh thì tạo avatar mặc định
+        const initials = user.username
+          ? user.username.slice(0, 2).toUpperCase()
+          : "U";
+        const defaultAvatar = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320'><rect width='100%' height='100%' fill='%23eef2ff'/><text x='50%' y='54%' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='72' fill='%23333'>${initials}</text></svg>`;
+        userAvatar.src = defaultAvatar;
+      }
+    } catch (err) {
+      console.error("Lỗi khi đọc dữ liệu người dùng:", err);
+    }
+  }
+});
+window.addEventListener("storage", (event) => {
+  if (event.key === "currentuser") {
+    const user = JSON.parse(event.newValue);
+    const userAvatar = document.getElementById("user-avatar");
+    const userName = document.getElementById("user-name");
+
+    if (user.username) userName.textContent = user.username;
+    if (user.avatar_url) userAvatar.src = user.avatar_url;
+  }
+});
+// Đồng bộ avatar khi người dùng quay lại trang chủ 
+window.addEventListener("focus", () => {
+  const storedUser = localStorage.getItem("currentuser");
+  if (storedUser) {
+    try {
+      const user = JSON.parse(storedUser);
+      const userAvatar = document.getElementById("user-avatar");
+      const userName = document.getElementById("user-name");
+
+      if (user.username) userName.textContent = user.username;
+      if (user.avatar_url) {
+        userAvatar.src = user.avatar_url;
+      } else {
+        const initials = user.username
+          ? user.username.slice(0, 2).toUpperCase()
+          : "U";
+        const defaultAvatar = `data:image/svg+xml;utf8,
+          <svg xmlns='http://www.w3.org/2000/svg' width='320' height='320'>
+            <rect width='100%' height='100%' fill='%23eef2ff'/>
+            <text x='50%' y='54%' dominant-baseline='middle' 
+            text-anchor='middle' font-family='Arial' font-size='72' fill='%23333'>
+              ${initials}
+            </text>
+          </svg>`;
+        userAvatar.src = defaultAvatar;
+      }
+    } catch (err) {
+      console.error("Lỗi khi cập nhật avatar sau khi quay lại:", err);
+    }
+  }
+});
+
+window.addEventListener("pageshow", () => {
+  const user = JSON.parse(localStorage.getItem("currentuser"));
+  if (user) updateCurrentUser(user);
+});
 
 // hiển thị popular artists
 async function fetchAndRenderTrendingArtists() {
@@ -591,7 +669,11 @@ async function fetchAndRenderTodaysBiggestHits() {
     const tracks = response.tracks || []
 
     if (window.musicPlayer) {
-      window.musicPlayer.playlist = tracks
+      // Chỉ set playlist nếu chưa có hoặc đang ở chế độ hits
+      if (!window.musicPlayer.playlistSource || window.musicPlayer.playlistSource === 'hits') {
+        window.musicPlayer.playlist = tracks
+        window.musicPlayer.playlistSource = 'hits'
+      }
     }
 
     // Clear loading state
@@ -634,12 +716,18 @@ function createHitCard(track, index) {
   playBtn.addEventListener("click", (e) => {
     e.stopPropagation()
     if (window.musicPlayer) {
+      // Đảm bảo playlist được set đúng từ hits
+      window.musicPlayer.playlistSource = 'hits'
+      window.musicPlayer.currentTrackIndex = index
       window.musicPlayer.loadAndPlay(index)
     }
   })
 
   card.addEventListener("click", () => {
     if (window.musicPlayer) {
+      // Đảm bảo playlist được set đúng từ hits
+      window.musicPlayer.playlistSource = 'hits'
+      window.musicPlayer.currentTrackIndex = index
       window.musicPlayer.loadAndPlay(index)
     }
   })
@@ -829,3 +917,318 @@ document.addEventListener("DOMContentLoaded", () => {
 
 let isShowingArtistProfile = false
 let currentArtistId = null
+
+// Thêm vào cuối file main.js
+
+// Search Functionality
+document.addEventListener("DOMContentLoaded", () => {
+  const searchInput = document.querySelector(".search-input")
+  const searchResultsContainer = createSearchResultsContainer()
+  
+  let searchTimeout = null
+  let isSearchOpen = false
+
+  // Lưu reference đến function fetchAndRenderTodaysBiggestHits để có thể gọi lại
+  window.refreshHitsPlaylist = function() {
+    if (window.musicPlayer) {
+      window.musicPlayer.playlistSource = 'hits'
+    }
+  }
+
+  // Tạo container cho kết quả tìm kiếm
+  function createSearchResultsContainer() {
+    const container = document.createElement("div")
+    container.className = "search-results-container"
+    container.style.display = "none"
+    
+    // Tìm vị trí để chèn container (sau thanh search)
+    const searchWrapper = searchInput.closest(".search-bar") || searchInput.parentElement
+    if (searchWrapper) {
+      searchWrapper.style.position = "relative"
+      searchWrapper.appendChild(container)
+    }
+    
+    return container
+  }
+
+  // Debounce search để tránh gọi API quá nhiều
+  function debounceSearch(query) {
+    clearTimeout(searchTimeout)
+    
+    if (query.trim().length === 0) {
+      hideSearchResults()
+      return
+    }
+
+    searchTimeout = setTimeout(() => {
+      performSearch(query)
+    }, 300)
+  }
+
+  // Thực hiện tìm kiếm
+  async function performSearch(query) {
+    try {
+      showLoadingState()
+      
+      // Gọi API tìm kiếm song song với query parameter "search"
+      const [tracksResponse, artistsResponse] = await Promise.all([
+        httpRequest.get(`tracks?limit=50&offset=0&search=${encodeURIComponent(query)}`),
+        httpRequest.get(`artists?limit=50&offset=0&search=${encodeURIComponent(query)}`)
+      ])
+
+      let tracks = tracksResponse.tracks || []
+      let artists = artistsResponse.artists || []
+
+      // Lọc kết quả client-side để đảm bảo chính xác
+      const searchTerm = query.toLowerCase().trim()
+      
+      // Lọc tracks theo title hoặc artist_name
+      tracks = tracks.filter(track => {
+        const titleMatch = track.title?.toLowerCase().includes(searchTerm)
+        const artistMatch = track.artist_name?.toLowerCase().includes(searchTerm)
+        return titleMatch || artistMatch
+      })
+
+      // Lọc artists theo name
+      artists = artists.filter(artist => {
+        return artist.name?.toLowerCase().includes(searchTerm)
+      })
+
+      // Sắp xếp kết quả: ưu tiên kết quả khớp từ đầu
+      tracks.sort((a, b) => {
+        const aTitle = a.title?.toLowerCase() || ''
+        const bTitle = b.title?.toLowerCase() || ''
+        const aStartsWith = aTitle.startsWith(searchTerm)
+        const bStartsWith = bTitle.startsWith(searchTerm)
+        
+        if (aStartsWith && !bStartsWith) return -1
+        if (!aStartsWith && bStartsWith) return 1
+        return 0
+      })
+
+      artists.sort((a, b) => {
+        const aName = a.name?.toLowerCase() || ''
+        const bName = b.name?.toLowerCase() || ''
+        const aStartsWith = aName.startsWith(searchTerm)
+        const bStartsWith = bName.startsWith(searchTerm)
+        
+        if (aStartsWith && !bStartsWith) return -1
+        if (!aStartsWith && bStartsWith) return 1
+        return 0
+      })
+
+      // Giới hạn số lượng hiển thị
+      tracks = tracks.slice(0, 5)
+      artists = artists.slice(0, 5)
+
+      renderSearchResults(tracks, artists, query)
+    } catch (error) {
+      console.error("Search error:", error)
+      showErrorState()
+    }
+  }
+
+  // Hiển thị trạng thái loading
+  function showLoadingState() {
+    searchResultsContainer.innerHTML = `
+      <div class="search-loading">
+        <i class="fas fa-spinner fa-spin"></i>
+        <span>Đang tìm kiếm...</span>
+      </div>
+    `
+    searchResultsContainer.style.display = "block"
+    isSearchOpen = true
+  }
+
+  // Hiển thị trạng thái lỗi
+  function showErrorState() {
+    searchResultsContainer.innerHTML = `
+      <div class="search-error">
+        <i class="fas fa-exclamation-circle"></i>
+        <span>Không thể tìm kiếm. Vui lòng thử lại.</span>
+      </div>
+    `
+  }
+
+  // Render kết quả tìm kiếm
+  function renderSearchResults(tracks, artists, query) {
+    if (tracks.length === 0 && artists.length === 0) {
+      searchResultsContainer.innerHTML = `
+        <div class="search-empty">
+          <i class="fas fa-search"></i>
+          <span>Không tìm thấy kết quả cho "${query}"</span>
+        </div>
+      `
+      return
+    }
+
+    let html = '<div class="search-results-wrapper">'
+
+    // Hiển thị nghệ sĩ
+    if (artists.length > 0) {
+      html += `
+        <div class="search-section">
+          <h3 class="search-section-title">Nghệ sĩ</h3>
+          <div class="search-artists-list">
+      `
+      artists.forEach(artist => {
+        html += `
+          <div class="search-artist-item" data-artist-id="${artist.id}">
+            <img src="${artist.image_url || 'placeholder.svg?height=48&width=48'}" alt="${artist.name}">
+            <div class="search-artist-info">
+              <div class="search-artist-name">${artist.name}</div>
+              <div class="search-artist-type">Nghệ sĩ</div>
+            </div>
+          </div>
+        `
+      })
+      html += '</div></div>'
+    }
+
+    // Hiển thị bài hát
+    if (tracks.length > 0) {
+      html += `
+        <div class="search-section">
+          <h3 class="search-section-title">Bài hát</h3>
+          <div class="search-tracks-list">
+      `
+      tracks.forEach((track, index) => {
+        html += `
+          <div class="search-track-item" data-track-index="${index}">
+            <img src="${track.image_url || 'placeholder.svg?height=48&width=48'}" alt="${track.title}">
+            <div class="search-track-info">
+              <div class="search-track-name">${track.title}</div>
+              <div class="search-track-artist">${track.artist_name || 'Unknown Artist'}</div>
+            </div>
+            <div class="search-track-duration">${formatDuration(track.duration)}</div>
+            <button class="search-track-play-btn">
+              <i class="fas fa-play"></i>
+            </button>
+          </div>
+        `
+      })
+      html += '</div></div>'
+    }
+
+    // Nút xem tất cả
+    html += `
+      <div class="search-footer">
+        <button class="search-view-all-btn">
+          Xem tất cả kết quả cho "${query}"
+        </button>
+      </div>
+    `
+
+    html += '</div>'
+    searchResultsContainer.innerHTML = html
+    searchResultsContainer.style.display = "block"
+    isSearchOpen = true
+
+    // Lưu tracks vào playlist tạm để phát nhạc
+    window.searchPlaylist = tracks
+
+    // Add event listeners
+    addSearchResultsEventListeners()
+  }
+
+  // Thêm event listeners cho kết quả tìm kiếm
+  function addSearchResultsEventListeners() {
+    // Click vào nghệ sĩ
+    const artistItems = searchResultsContainer.querySelectorAll(".search-artist-item")
+    artistItems.forEach(item => {
+      item.addEventListener("click", () => {
+        const artistId = item.dataset.artistId
+        showArtistProfile(artistId)
+        hideSearchResults()
+        searchInput.value = ""
+      })
+    })
+
+    // Click vào bài hát
+    const trackItems = searchResultsContainer.querySelectorAll(".search-track-item")
+    trackItems.forEach(item => {
+      item.addEventListener("click", (e) => {
+        if (!e.target.closest(".search-track-play-btn")) {
+          const trackIndex = parseInt(item.dataset.trackIndex)
+          playSearchTrack(trackIndex)
+        }
+      })
+    })
+
+    // Click nút play
+    const playBtns = searchResultsContainer.querySelectorAll(".search-track-play-btn")
+    playBtns.forEach((btn, index) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation()
+        playSearchTrack(index)
+      })
+    })
+
+    // Click xem tất cả
+    const viewAllBtn = searchResultsContainer.querySelector(".search-view-all-btn")
+    if (viewAllBtn) {
+      viewAllBtn.addEventListener("click", () => {
+        // Có thể mở trang search riêng hoặc hiển thị full results
+        alert("Chức năng xem tất cả đang được phát triển")
+      })
+    }
+  }
+
+  // Phát nhạc từ kết quả tìm kiếm
+  function playSearchTrack(trackIndex) {
+    if (window.musicPlayer && window.searchPlaylist) {
+      // Đánh dấu đây là playlist từ search
+      window.musicPlayer.playlist = window.searchPlaylist
+      window.musicPlayer.playlistSource = 'search'
+      window.musicPlayer.currentTrackIndex = trackIndex
+      window.musicPlayer.loadAndPlay(trackIndex)
+      hideSearchResults()
+      searchInput.value = ""
+    }
+  }
+
+  // Ẩn kết quả tìm kiếm
+  function hideSearchResults() {
+    searchResultsContainer.style.display = "none"
+    isSearchOpen = false
+  }
+
+  // Event listeners cho search input
+  searchInput.addEventListener("input", (e) => {
+    debounceSearch(e.target.value)
+  })
+
+  searchInput.addEventListener("focus", () => {
+    if (searchInput.value.trim().length > 0) {
+      searchResultsContainer.style.display = "block"
+      isSearchOpen = true
+    }
+  })
+
+  // Click bên ngoài để đóng kết quả tìm kiếm
+  document.addEventListener("click", (e) => {
+    if (isSearchOpen && 
+        !searchInput.contains(e.target) && 
+        !searchResultsContainer.contains(e.target)) {
+      hideSearchResults()
+    }
+  })
+
+  // Escape để đóng
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && isSearchOpen) {
+      hideSearchResults()
+      searchInput.blur()
+    }
+  })
+
+  // Clear button (nếu có)
+  const clearBtn = document.querySelector(".search-clear-btn")
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      searchInput.value = ""
+      hideSearchResults()
+      searchInput.focus()
+    })
+  }
+})

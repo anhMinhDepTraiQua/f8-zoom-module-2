@@ -1133,3 +1133,302 @@
                 background-color: rgba(0, 0, 0, 0.9);
                 transform: scale(1.04);
             }
+/* Thêm vào file CSS của bạn */
+
+/* Search Results Container */
+.search-results-container {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: #282828;
+  border-radius: 8px;
+  box-shadow: 0 16px 24px rgba(0, 0, 0, 0.3), 0 6px 8px rgba(0, 0, 0, 0.2);
+  max-height: 70vh;
+  overflow-y: auto;
+  z-index: 1000;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Custom Scrollbar */
+.search-results-container::-webkit-scrollbar {
+  width: 12px;
+}
+
+.search-results-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.search-results-container::-webkit-scrollbar-thumb {
+  background: #535353;
+  border-radius: 6px;
+}
+
+.search-results-container::-webkit-scrollbar-thumb:hover {
+  background: #6a6a6a;
+}
+
+/* Loading State */
+.search-loading,
+.search-error,
+.search-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: #b3b3b3;
+  gap: 12px;
+}
+
+.search-loading i {
+  font-size: 32px;
+  color: #1db954;
+}
+
+.search-error i,
+.search-empty i {
+  font-size: 32px;
+  color: #b3b3b3;
+}
+
+/* Search Results Wrapper */
+.search-results-wrapper {
+  padding: 8px 0;
+}
+
+/* Search Section */
+.search-section {
+  padding: 8px 0;
+}
+
+.search-section-title {
+  padding: 8px 16px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+}
+
+/* Artist Items */
+.search-artists-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.search-artist-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.search-artist-item:hover {
+  background-color: #3e3e3e;
+}
+
+.search-artist-item img {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.search-artist-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.search-artist-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-artist-type {
+  font-size: 12px;
+  color: #b3b3b3;
+  margin-top: 2px;
+}
+
+/* Track Items */
+.search-tracks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.search-track-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  position: relative;
+}
+
+.search-track-item:hover {
+  background-color: #3e3e3e;
+}
+
+.search-track-item:hover .search-track-play-btn {
+  opacity: 1;
+}
+
+.search-track-item img {
+  width: 48px;
+  height: 48px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.search-track-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.search-track-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+
+.search-track-artist {
+  font-size: 12px;
+  color: #b3b3b3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-track-duration {
+  font-size: 14px;
+  color: #b3b3b3;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.search-track-play-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #1db954;
+  border: none;
+  color: #000;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.search-track-play-btn:hover {
+  transform: scale(1.05);
+  background: #1ed760;
+}
+
+.search-track-play-btn i {
+  font-size: 14px;
+  margin-left: 2px;
+}
+
+/* Search Footer */
+.search-footer {
+  padding: 16px;
+  border-top: 1px solid #3e3e3e;
+  margin-top: 8px;
+}
+
+.search-view-all-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: transparent;
+  border: 1px solid #535353;
+  border-radius: 500px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.search-view-all-btn:hover {
+  border-color: #fff;
+  transform: scale(1.02);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .search-results-container {
+    max-height: 60vh;
+  }
+
+  .search-artist-item img,
+  .search-track-item img {
+    width: 40px;
+    height: 40px;
+  }
+
+  .search-artist-name,
+  .search-track-name {
+    font-size: 13px;
+  }
+
+  .search-artist-type,
+  .search-track-artist,
+  .search-track-duration {
+    font-size: 11px;
+  }
+}
+
+/* Clear button cho search input (optional) */
+.search-bar {
+  position: relative;
+}
+
+.search-clear-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #b3b3b3;
+  cursor: pointer;
+  padding: 8px;
+  display: none;
+}
+
+.search-input:not(:placeholder-shown) ~ .search-clear-btn {
+  display: block;
+}
+
+.search-clear-btn:hover {
+  color: #fff;
+}

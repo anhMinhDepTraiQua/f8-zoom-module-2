@@ -1432,3 +1432,58 @@
 .search-clear-btn:hover {
   color: #fff;
 }
+.follow-btn{
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-xl);
+    background-color: var(--accent-primary);
+    color: var(--bg-primary);
+    font-size: 14px;
+    font-weight: 700;
+    transition: all var(--transition-fast);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    cursor: pointer;
+}
+.follow-btn:hover {
+    background-color: var(--accent-hover);
+    transform: scale(1.04);
+}
+.library-content {
+  position: relative;
+}
+.library-artists.hidden,
+.library-playlists.hidden {
+  display: none;
+}
+.library-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.library-item:hover {
+  opacity: 0.8;
+}
+.library-item img {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+.library-info h4 {
+  font-size: 15px;
+  margin: 0;
+}
+.library-info p {
+  font-size: 13px;
+  color: #aaa;
+  margin: 2px 0 0;
+}
+.empty-text, .error-text {
+  padding: 16px;
+  color: #888;
+  font-size: 14px;
+}

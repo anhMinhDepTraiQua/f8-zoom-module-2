@@ -501,6 +501,78 @@ async function showArtistProfile(artistId) {
     alert("Failed to load artist profile. Please try again later.")
     hideArtistProfile()
   }
+// follow btn functionality
+  const followBtn = document.querySelector(".follow-btn");
+  
+  // Reset và kiểm tra trạng thái follow của artist hiện tại
+  followBtn.textContent = "Follow"; // Reset về trạng thái mặc định
+  followBtn.disabled = true; // Disable trong khi đang load
+  
+  let isFollowing = false;
+  try {
+    // Lấy thông tin artist để check follow status
+    const artistInfo = await httpRequest.get(`artists/${artistId}`);
+    isFollowing = artistInfo.is_following || false;
+    followBtn.textContent = isFollowing ? "Following" : "Follow";
+    followBtn.disabled = false;
+    console.log(`Artist ${artistId} follow status:`, isFollowing);
+  } catch (error) {
+    console.log("Could not check follow status:", error);
+    followBtn.textContent = "Follow";
+    followBtn.disabled = false;
+  }
+  
+  // Remove old event listeners để tránh duplicate
+  const newFollowBtn = followBtn.cloneNode(true);
+  followBtn.parentNode.replaceChild(newFollowBtn, followBtn);
+  
+  newFollowBtn.addEventListener("click", async () => {
+    const currentText = newFollowBtn.textContent.trim();
+    const willFollow = currentText === "Follow";
+    
+    // Disable button khi đang xử lý
+    newFollowBtn.disabled = true;
+    
+    try {
+      if (willFollow) {
+        // Follow artist - POST request
+        await httpRequest.post(`artists/${artistId}/follow`, {});
+        newFollowBtn.textContent = "Following";
+        isFollowing = true;
+        console.log(`Successfully followed artist ${artistId}`);
+      } else {
+        // Unfollow artist - DELETE request
+        await httpRequest.delete(`artists/${artistId}/follow`);
+        newFollowBtn.textContent = "Follow";
+        isFollowing = false;
+        console.log(`Successfully unfollowed artist ${artistId}`);
+      }
+    } catch (error) {
+      console.error("Error toggling follow status:", error);
+      
+      // Xử lý các loại lỗi
+      if (error.status === 409) {
+        // Conflict - có thể đã follow rồi, refresh trạng thái
+        try {
+          const artistInfo = await httpRequest.get(`artists/${artistId}`);
+          isFollowing = artistInfo.is_following || false;
+          newFollowBtn.textContent = isFollowing ? "Following" : "Follow";
+          console.log("Refreshed follow status after conflict");
+        } catch (e) {
+          console.error("Could not refresh status:", e);
+        }
+      } else if (error.status === 404) {
+        alert("Artist not found");
+      } else if (error.status === 401) {
+        alert("Please login to follow artists");
+      } else {
+        alert("Failed to update follow status. Please try again.");
+      }
+    } finally {
+      // Re-enable button
+      newFollowBtn.disabled = false;
+    }
+  });
 }
 
 function hideArtistProfile() {
@@ -524,6 +596,11 @@ function hideArtistProfile() {
   const backBtn = document.querySelector(".back-btn")
   if (backBtn) {
     backBtn.style.display = "none"
+        // Scroll to the popular artists section
+    const artistsSection = document.querySelector(".artists-section");
+    if (artistsSection) {
+      artistsSection.scrollIntoView({ behavior: "smooth" });
+    }
   }
 
   fetchAndRenderTodaysBiggestHits()
@@ -1232,3 +1309,122 @@ document.addEventListener("DOMContentLoaded", () => {
     })
   }
 })
+// ==== CODE MỚI THÊM VÀO CUỐI FILE main.js ====
+// ====== Replace previous "Artists tab" logic with this safe version ======
+document.addEventListener("DOMContentLoaded", () => {
+  const libraryContent = document.querySelector(".library-content");
+  const navTabs = document.querySelectorAll(".nav-tab");
+  const playlistTab = document.querySelector(".nav-tab:nth-child(1)");
+  const artistTab = document.querySelector(".nav-tab:nth-child(2)");
+
+  // Nếu không tìm thấy .library-content thì dừng
+  if (!libraryContent) return;
+
+  // Create two persistent containers and move original children into playlistsContainer
+  const playlistsContainer = document.createElement("div");
+  playlistsContainer.className = "library-playlists";
+
+  const artistsContainer = document.createElement("div");
+  artistsContainer.className = "library-artists hidden";
+
+  // Move existing children (the original playlists HTML) into playlistsContainer
+  while (libraryContent.firstChild) {
+    playlistsContainer.appendChild(libraryContent.firstChild);
+  }
+
+  // Append the two containers into libraryContent
+  libraryContent.appendChild(playlistsContainer);
+  libraryContent.appendChild(artistsContainer);
+
+  // Utility: ensure CSS has .hidden { display: none; } (or your existing class)
+  // Now tab switching only toggles visibility of containers (no innerHTML overwrite)
+  function showPlaylists() {
+    navTabs.forEach((t) => t.classList.remove("active"));
+    if (playlistTab) playlistTab.classList.add("active");
+
+    artistsContainer.classList.add("hidden");
+    playlistsContainer.classList.remove("hidden");
+
+    // If you need to refresh playlists content from API, call your fetch function here
+    // e.g. fetchAndRenderPlaylists() -- if such function exists. Otherwise the static content stays.
+  }
+
+  async function showArtists() {
+    navTabs.forEach((t) => t.classList.remove("active"));
+    if (artistTab) artistTab.classList.add("active");
+
+    playlistsContainer.classList.add("hidden");
+    artistsContainer.classList.remove("hidden");
+
+    // Show loading placeholder
+    artistsContainer.innerHTML = '<div class="loading">Loading followed artists...</div>';
+
+    try {
+      const response = await httpRequest.get("me/following?limit=20&offset=0");
+      console.log("[DEBUG] /me/following response:", response);
+
+      // Normalize to an array (handle several possible shapes)
+      const artists =
+        response.data?.data ||
+        response.data?.artists ||
+        response.data?.items ||
+        response.artists ||
+        response.items ||
+        response.data ||
+        [];
+
+      console.log("[DEBUG] Parsed artists array:", artists);
+
+      if (!Array.isArray(artists) || artists.length === 0) {
+        artistsContainer.innerHTML =
+          '<div class="empty">You have not followed any artists yet.</div>';
+        return;
+      }
+
+      // Build list (clear first)
+      artistsContainer.innerHTML = "";
+      artists.forEach((artist) => {
+        const item = document.createElement("div");
+        item.className = "library-item";
+        item.innerHTML = `
+          <img
+            src="${artist.image || artist.image_url || 'placeholder.svg?height=48&width=48'}"
+            alt="${artist.name}"
+            class="item-image"
+          />
+          <div class="item-info">
+            <div class="item-title">${artist.name}</div>
+            <div class="item-subtitle">Artist</div>
+          </div>
+        `;
+        item.addEventListener("click", () => {
+          // open artist profile (reuse existing function)
+          if (typeof showArtistProfile === "function") showArtistProfile(artist.id);
+        });
+        artistsContainer.appendChild(item);
+      });
+    } catch (error) {
+      console.error("Error loading followed artists:", error);
+      artistsContainer.innerHTML =
+        '<div class="error">Failed to load followed artists. Please try again later.</div>';
+    }
+  }
+
+  // Attach tab click handlers
+  if (playlistTab) {
+    playlistTab.addEventListener("click", (e) => {
+      e.preventDefault();
+      showPlaylists();
+    });
+  }
+  if (artistTab) {
+    artistTab.addEventListener("click", (e) => {
+      e.preventDefault();
+      showArtists();
+    });
+  }
+
+  // Initial state: make sure playlists visible by default
+  showPlaylists();
+});
+

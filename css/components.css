@@ -1487,3 +1487,95 @@
   color: #888;
   font-size: 14px;
 }
+.custom-context-menu {
+  position: fixed;
+  background: #282828;
+  border: 1px solid #333;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  z-index: 9999;
+  padding: 4px 0;
+  width: 200px;
+  display: none;
+  animation: fadeIn 0.12s ease;
+}
+
+.custom-context-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: #fff;
+  padding: 10px 16px;
+  text-align: left;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.custom-context-menu button:hover {
+  background-color: #3e3e3e;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+.liked-hero {
+  display: flex;
+  align-items: flex-end;
+  gap: 24px;
+  background: linear-gradient(180deg, rgba(80,56,160,1) 0%, rgba(18,18,18,1) 100%);
+  padding: 40px;
+  border-radius: 8px;
+  color: white;
+}
+
+.liked-hero .hero-cover img {
+  width: 220px;
+  height: 220px;
+  border-radius: 8px;
+  box-shadow: 0 4px 40px rgba(0,0,0,0.5);
+}
+
+.liked-hero .hero-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.hero-type {
+  font-size: 14px;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.hero-title {
+  font-size: 64px;
+  font-weight: 800;
+}
+
+.hero-subtitle {
+  opacity: 0.8;
+}
+
+.hero-play-btn {
+  background-color: #1ed760;
+  color: #000;
+  border: none;
+  border-radius: 50%;
+  width: 56px;
+  height: 56px;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.hero-play-btn:hover {
+  transform: scale(1.05);
+}

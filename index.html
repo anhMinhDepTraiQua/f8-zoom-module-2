@@ -7,13 +7,13 @@
         <!-- Font Awesome CDN -->
         <link
             rel="stylesheet"
-            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
-        />
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
         <link rel="stylesheet" href="css/reset.css" />
         <link rel="stylesheet" href="css/variables.css" />
         <link rel="stylesheet" href="css/components.css" />
         <link rel="stylesheet" href="css/layout.css" />
         <link rel="stylesheet" href="css/responsive.css" />
+        <link rel="stylesheet" href="css/playlist.css" />
     </head>
     <body>
         <div class="app-container">
@@ -68,8 +68,7 @@
                             <img
                                 src="placeholder.svg?height=48&width=48"
                                 alt="Đen"
-                                class="item-image"
-                            />
+                                class="item-image" />
                             <div class="item-info">
                                 <div class="item-title">Đen</div>
                                 <div class="item-subtitle">Artist</div>
@@ -80,8 +79,7 @@
                             <img
                                 src="placeholder.svg?height=48&width=48"
                                 alt="Trúc Nhân"
-                                class="item-image"
-                            />
+                                class="item-image" />
                             <div class="item-info">
                                 <div class="item-title">Trúc Nhân</div>
                                 <div class="item-subtitle">Artist</div>
@@ -92,8 +90,7 @@
                             <img
                                 src="placeholder.svg?height=48&width=48"
                                 alt="24.03"
-                                class="item-image"
-                            />
+                                class="item-image" />
                             <div class="item-info">
                                 <div class="item-title">24.03</div>
                                 <div class="item-subtitle">Playlist • Han</div>
@@ -104,8 +101,7 @@
                             <img
                                 src="placeholder.svg?height=48&width=48"
                                 alt="Thùy Chi"
-                                class="item-image"
-                            />
+                                class="item-image" />
                             <div class="item-info">
                                 <div class="item-title">Thùy Chi</div>
                                 <div class="item-subtitle">Artist</div>
@@ -118,6 +114,9 @@
             <!-- Main Content -->
             <main class="main-content">
                 <header class="main-header">
+                    <button class="back-btn" style="display: none;">
+  <i class="fas fa-arrow-left"></i>
+</button>
                     <div class="search-container">
                         <div class="search-box">
                             <button class="home-btn">
@@ -128,8 +127,7 @@
                                 <input
                                     type="text"
                                     placeholder="What do you want to play?"
-                                    class="search-input"
-                                />
+                                    class="search-input" />
                             </div>
                         </div>
                     </div>
@@ -142,17 +140,17 @@
                             <div class="user-info">
                                 <span class="user-name" id="user-name"></span>
                                 <button class="user-avatar" id="userAvatar">
-                                <img
-                                    id="user-avatar"
-                                    src="placeholder.svg?height=32&width=32"
-                                    alt="User Avatar"
-                                />
-                            </button>
+                                    <img
+                                        id="user-avatar"
+                                        src="placeholder.svg?height=32&width=32"
+                                        alt="User Avatar" />
+                                </button>
                             </div>
                             <div class="user-dropdown" id="userDropdown">
                                 <div class="dropdown-item" id="profileBtn">
                                     <i class="fa-solid fa-user"></i>
-                                    <a href="user.html" target="_blank">account</a>
+                                    <a href="user.html"
+                                        target="_blank">account</a>
                                 </div>
                                 <div class="dropdown-item" id="settingsBtn">
                                     <i class="fa-solid fa-crown"></i>
@@ -184,8 +182,7 @@
                                 <div class="hit-card-cover">
                                     <img
                                         src="placeholder.svg?height=160&width=160"
-                                        alt="Flowers"
-                                    />
+                                        alt="Flowers" />
                                     <button class="hit-play-btn">
                                         <i class="fas fa-play"></i>
                                     </button>
@@ -200,8 +197,7 @@
                                 <div class="hit-card-cover">
                                     <img
                                         src="placeholder.svg?height=160&width=160"
-                                        alt="Anti-Hero"
-                                    />
+                                        alt="Anti-Hero" />
                                     <button class="hit-play-btn">
                                         <i class="fas fa-play"></i>
                                     </button>
@@ -216,8 +212,7 @@
                                 <div class="hit-card-cover">
                                     <img
                                         src="placeholder.svg?height=160&width=160"
-                                        alt="Lối Nhỏ"
-                                    />
+                                        alt="Lối Nhỏ" />
                                     <button class="hit-play-btn">
                                         <i class="fas fa-play"></i>
                                     </button>
@@ -232,8 +227,7 @@
                                 <div class="hit-card-cover">
                                     <img
                                         src="placeholder.svg?height=160&width=160"
-                                        alt="As It Was"
-                                    />
+                                        alt="As It Was" />
                                     <button class="hit-play-btn">
                                         <i class="fas fa-play"></i>
                                     </button>
@@ -248,8 +242,7 @@
                                 <div class="hit-card-cover">
                                     <img
                                         src="placeholder.svg?height=160&width=160"
-                                        alt="Unholy"
-                                    />
+                                        alt="Unholy" />
                                     <button class="hit-play-btn">
                                         <i class="fas fa-play"></i>
                                     </button>
@@ -266,8 +259,7 @@
                                 <div class="hit-card-cover">
                                     <img
                                         src="placeholder.svg?height=160&width=160"
-                                        alt="Cho Tôi Lang Thang"
-                                    />
+                                        alt="Cho Tôi Lang Thang" />
                                     <button class="hit-play-btn">
                                         <i class="fas fa-play"></i>
                                     </button>
@@ -292,8 +284,7 @@
                                 <div class="artist-card-cover">
                                     <img
                                         src="placeholder.svg?height=160&width=160"
-                                        alt="Đen"
-                                    />
+                                        alt="Đen" />
                                     <button class="artist-play-btn">
                                         <i class="fas fa-play"></i>
                                     </button>
@@ -308,8 +299,7 @@
                                 <div class="artist-card-cover">
                                     <img
                                         src="placeholder.svg?height=160&width=160"
-                                        alt="Taylor Swift"
-                                    />
+                                        alt="Taylor Swift" />
                                     <button class="artist-play-btn">
                                         <i class="fas fa-play"></i>
                                     </button>
@@ -326,8 +316,7 @@
                                 <div class="artist-card-cover">
                                     <img
                                         src="placeholder.svg?height=160&width=160"
-                                        alt="Sơn Tùng M-TP"
-                                    />
+                                        alt="Sơn Tùng M-TP" />
                                     <button class="artist-play-btn">
                                         <i class="fas fa-play"></i>
                                     </button>
@@ -344,8 +333,7 @@
                                 <div class="artist-card-cover">
                                     <img
                                         src="placeholder.svg?height=160&width=160"
-                                        alt="Harry Styles"
-                                    />
+                                        alt="Harry Styles" />
                                     <button class="artist-play-btn">
                                         <i class="fas fa-play"></i>
                                     </button>
@@ -362,8 +350,7 @@
                                 <div class="artist-card-cover">
                                     <img
                                         src="placeholder.svg?height=160&width=160"
-                                        alt="Trúc Nhân"
-                                    />
+                                        alt="Trúc Nhân" />
                                     <button class="artist-play-btn">
                                         <i class="fas fa-play"></i>
                                     </button>
@@ -382,8 +369,7 @@
                             <img
                                 src="placeholder.svg"
                                 alt="Đen artist background"
-                                class="hero-image"
-                            />
+                                class="hero-image" />
                             <div class="hero-overlay"></div>
                         </div>
                         <div class="hero-content">
@@ -415,8 +401,7 @@
                                 <div class="track-image">
                                     <img
                                         src="placeholder.svg?height=40&width=40"
-                                        alt="Cho Tôi Lang Thang"
-                                    />
+                                        alt="Cho Tôi Lang Thang" />
                                 </div>
                                 <div class="track-info">
                                     <div class="track-name">
@@ -433,14 +418,12 @@
                             <div class="track-item playing">
                                 <div class="track-number">
                                     <i
-                                        class="fas fa-volume-up playing-icon"
-                                    ></i>
+                                        class="fas fa-volume-up playing-icon"></i>
                                 </div>
                                 <div class="track-image">
                                     <img
                                         src="placeholder.svg?height=40&width=40"
-                                        alt="Lối Nhỏ"
-                                    />
+                                        alt="Lối Nhỏ" />
                                 </div>
                                 <div class="track-info">
                                     <div class="track-name playing-text">
@@ -459,8 +442,7 @@
                                 <div class="track-image">
                                     <img
                                         src="placeholder.svg?height=40&width=40"
-                                        alt="Cho Minh Em"
-                                    />
+                                        alt="Cho Minh Em" />
                                 </div>
                                 <div class="track-info">
                                     <div class="track-name">Cho Minh Em</div>
@@ -482,8 +464,7 @@
                     <img
                         src="placeholder.svg?height=56&width=56"
                         alt="Current track"
-                        class="player-image"
-                    />
+                        class="player-image" />
                     <div class="player-info">
                         <div class="player-title">
                             Bài hát
@@ -522,13 +503,13 @@
                     </div>
                     <div class="progress-container">
                         <span class="time running-time">0:00</span>
-                                                <div class="progress-bar">
+                        <div class="progress-bar">
                             <div class="progress-fill"></div>
                             <div class="progress-handle"></div>
                         </div>
                         <span class="time total-time">0:00</span>
                     </div>
-                    <audio src="" id="audio"></audio>
+                    <audio src id="audio"></audio>
                 </div>
 
                 <div class="player-right">
@@ -575,8 +556,7 @@
                                     type="email"
                                     placeholder="Email address"
                                     class="form-input"
-                                    id="signupEmail"
-                                />
+                                    id="signupEmail" />
                                 <div class="error-message">
                                     <i class="fas fa-info-circle"></i>
                                     <span class="error-text"></span>
@@ -588,15 +568,12 @@
                                     type="password"
                                     placeholder="Password"
                                     class="form-input"
-                                    id="signupPassword"
-                                />
+                                    id="signupPassword" />
                                 <i class="fas fa-eye" id="togglePassword"></i>
                                 <div class="error-message">
                                     <i class="fas fa-info-circle"></i>
-                                    <span
-                                        >Password must be at least 8
-                                        characters</span
-                                    >
+                                    <span>Password must be at least 8
+                                        characters</span>
                                 </div>
                             </div>
 
@@ -623,14 +600,11 @@
                                     type="email"
                                     placeholder="Email address"
                                     class="form-input"
-                                    id="loginEmail"
-                                />
+                                    id="loginEmail" />
                                 <div class="error-message">
                                     <i class="fas fa-info-circle"></i>
-                                    <span
-                                        >Please enter a valid email
-                                        address</span
-                                    >
+                                    <span>Please enter a valid email
+                                        address</span>
                                 </div>
                             </div>
 
@@ -639,8 +613,7 @@
                                     type="password"
                                     placeholder="Password"
                                     class="form-input"
-                                    id="loginPassword"
-                                />
+                                    id="loginPassword" />
 
                                 <div class="error-message">
                                     <i class="fas fa-info-circle"></i>

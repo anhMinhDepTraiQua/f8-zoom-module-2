@@ -989,6 +989,49 @@ document.addEventListener("DOMContentLoaded", () => {
       loadTrack(trackIndex);
     },
   };
+  // === Playlist Creation Logic (replaces buggy old behavior) ===
+let tempPlaylist = JSON.parse(localStorage.getItem("tempPlaylist")) || { name: "", tracks: [] };
+
+function addTrackToTempPlaylist(track) {
+  if (!track || !track.id) return;
+  const exists = tempPlaylist.tracks.some(t => t.id === track.id);
+  if (!exists) {
+    tempPlaylist.tracks.push(track);
+    localStorage.setItem("tempPlaylist", JSON.stringify(tempPlaylist));
+  }
+}
+
+function clearTempPlaylist() {
+  tempPlaylist = { name: "", tracks: [] };
+  localStorage.removeItem("tempPlaylist");
+}
+
+async function saveTempPlaylistToServer(name) {
+  if (!name) throw new Error("Playlist name required");
+  if (!tempPlaylist.tracks.length) throw new Error("No tracks in playlist");
+
+  // 1️⃣ Tạo playlist trống
+  const created = await httpRequest.post("playlists", { name });
+  const playlistId = created?.playlist?.id;
+  if (!playlistId) throw new Error("Failed to create playlist ID");
+
+  // 2️⃣ Gửi track_id từng bài vào playlist đó
+  for (const track of tempPlaylist.tracks) {
+    try {
+      await httpRequest.post(`playlists/${playlistId}/tracks`, {
+        track_id: track.id,
+      });
+    } catch (err) {
+      console.error("Failed to add track:", track.id, err);
+    }
+  }
+
+  // 3️⃣ Xoá dữ liệu tạm
+  clearTempPlaylist();
+  return created;
+}
+
+
 
   function loadTrack(trackIndex) {
     const track = window.musicPlayer.playlist[trackIndex];
@@ -1957,21 +2000,32 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
   
-  function toggleSongSelection(track, item, btn) {
-    const index = selectedSongs.findIndex(s => s.id === track.id);
-    
+// === toggle selection: chỉ thay selectedSongs, không gọi API hoặc submit ===
+function toggleSongSelection(track, item, btn) {
+  try {
+    const index = selectedSongs.findIndex((s) => String(s.id) === String(track.id));
+
     if (index > -1) {
+      // remove
       selectedSongs.splice(index, 1);
       item.classList.remove("selected");
       btn.innerHTML = '<i class="fas fa-plus"></i>';
     } else {
+      // add
       selectedSongs.push(track);
       item.classList.add("selected");
       btn.innerHTML = '<i class="fas fa-check"></i>';
     }
-    
+
     updateSelectedSongsList();
+
+    // debug: show current selected IDs in console (remove in prod)
+    console.debug("Selected songs IDs:", selectedSongs.map(s => s.id));
+  } catch (err) {
+    console.error("toggleSongSelection error:", err);
   }
+}
+
   
   function updateSelectedSongsList() {
     selectedCount.textContent = selectedSongs.length;
@@ -2019,68 +2073,104 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
   
-  // Submit form
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    
-    const playlistName = document.querySelector("#playlistName").value.trim();
-    
-    if (!playlistName) {
-      alert("Please enter a playlist name");
-      return;
+// === robust submit handler for Create Playlist ===
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const playlistName = document.querySelector("#playlistName").value.trim();
+
+  if (!playlistName) {
+    alert("Please enter a playlist name");
+    return;
+  }
+
+  if (!selectedSongs || selectedSongs.length === 0) {
+    // bảo người dùng, không tự tạo playlist khi chưa có bài
+    alert("Please select at least one song before creating the playlist.");
+    return;
+  }
+
+  const submitBtn = form.querySelector(".btn-create");
+  submitBtn.disabled = true;
+  const originalText = submitBtn.textContent;
+  submitBtn.textContent = "Creating...";
+
+  try {
+    // 1) Upload image if present
+    let imageUrl = null;
+    if (uploadedImageFile) {
+      const formData = new FormData();
+      formData.append("file", uploadedImageFile);
+
+      const uploadResponse = await fetch("https://spotify.f8team.dev/api/upload", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+        },
+        body: formData
+      });
+
+      if (uploadResponse.ok) {
+        const uploadData = await uploadResponse.json();
+        imageUrl = uploadData.url || uploadData.file_url || null;
+      } else {
+        console.warn("Image upload failed, continuing without image");
+      }
     }
-    
-    try {
-      const submitBtn = form.querySelector(".btn-create");
-      submitBtn.disabled = true;
-      submitBtn.textContent = "Creating...";
-      
-      // Upload image first if available
-      let imageUrl = null;
-      if (uploadedImageFile) {
-        const formData = new FormData();
-        formData.append("file", uploadedImageFile);
-        
-        const uploadResponse = await fetch("https://spotify.f8team.dev/api/upload", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${localStorage.getItem("access_token")}`
-          },
-          body: formData
-        });
-        
-        if (uploadResponse.ok) {
-          const uploadData = await uploadResponse.json();
-          imageUrl = uploadData.url || uploadData.file_url;
+
+    // 2) Prepare basic payload with track_ids (best-effort)
+    const trackIds = selectedSongs.map(t => t.id);
+    const payload = {
+      name: playlistName,
+      ...(imageUrl ? { image_url: imageUrl } : {}),
+      track_ids: trackIds
+    };
+
+    // 3) Try to create playlist in one call
+    const createResp = await httpRequest.post("playlists", payload);
+    console.debug("Create playlist response:", createResp);
+
+    // 4) Some backends create playlist but ignore track_ids => verify
+    const createdPlaylistId = createResp?.playlist?.id || createResp?.id || null;
+
+    // If playlist has tracks in response, good. Otherwise, fallback to add individually.
+    const respTracks = createResp?.playlist?.tracks || createResp?.tracks;
+    if ((!respTracks || respTracks.length === 0) && createdPlaylistId && trackIds.length > 0) {
+      // fallback: add each track with POST /playlists/:id/tracks
+      for (const tid of trackIds) {
+        try {
+          await httpRequest.post(`playlists/${createdPlaylistId}/tracks`, { track_id: tid });
+        } catch (err) {
+          console.error("Failed to add track via fallback:", tid, err);
         }
       }
-      
-      // Create playlist
-      const playlistData = {
-        name: playlistName,
-        image_url: imageUrl,
-        track_ids: selectedSongs.map(track => track.id)
-      };
-      
-      const response = await httpRequest.post("playlists", playlistData);
-      
-      console.log("Playlist created:", response);
-      
-      // Refresh playlists in sidebar
-      await fetchAndRenderUserPlaylists();
-      
-      closeCreatePlaylistModal();
-      alert("Playlist created successfully!");
-      
-    } catch (error) {
-      console.error("Error creating playlist:", error);
-      alert("Failed to create playlist. Please try again.");
-    } finally {
-      const submitBtn = form.querySelector(".btn-create");
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Create Playlist";
     }
-  });
+
+    // 5) Clear selected UI + state
+    selectedSongs = [];
+    updateSelectedSongsList();
+    closeCreatePlaylistModal(); // ensure this function still exists in your file
+    alert("Playlist created successfully!");
+    
+    // 6) Refresh sidebar playlists
+    if (typeof fetchAndRenderUserPlaylists === "function") {
+      await fetchAndRenderUserPlaylists();
+    } else if (typeof fetchAndRenderPlaylists === "function") {
+      await fetchAndRenderPlaylists();
+    } else {
+      // generic refresh: try to call fetchAndRenderPlaylists (we added that earlier)
+      try { await fetchAndRenderPlaylists(); } catch(e){/*ignore*/ }
+    }
+  } catch (err) {
+    console.error("Error creating playlist:", err);
+    alert("Failed to create playlist. Please try again.");
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = originalText;
+  }
+});
+
+
 });
 
 // ============= FETCH AND RENDER USER PLAYLISTS =============
@@ -2355,60 +2445,6 @@ function openEditPlaylistModal(playlist) {
       reader.readAsDataURL(file);
     }
   });
-  
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    
-    const playlistName = document.querySelector("#editPlaylistName").value.trim();
-    
-    try {
-      const submitBtn = form.querySelector(".btn-create");
-      submitBtn.disabled = true;
-      submitBtn.textContent = "Saving...";
-      
-      let imageUrl = playlist.image_url;
-      
-      if (uploadedImageFile) {
-        const formData = new FormData();
-        formData.append("file", uploadedImageFile);
-        
-        const uploadResponse = await fetch("https://spotify.f8team.dev/api/upload", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${localStorage.getItem("access_token")}`
-          },
-          body: formData
-        });
-        
-        if (uploadResponse.ok) {
-          const uploadData = await uploadResponse.json();
-          imageUrl = uploadData.url || uploadData.file_url;
-        }
-      }
-      
-      const updateData = {
-        name: playlistName,
-        image_url: imageUrl
-      };
-      
-      await httpRequest.put(`playlists/${playlist.id}`, updateData);
-      
-      await fetchAndRenderUserPlaylists();
-      showPlaylistDetail(playlist.id);
-      
-      editModal.remove();
-      document.body.style.overflow = "auto";
-      alert("Playlist updated successfully!");
-      
-    } catch (error) {
-      console.error("Error updating playlist:", error);
-      alert("Failed to update playlist");
-    } finally {
-      const submitBtn = form.querySelector(".btn-create");
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Save Changes";
-    }
-  });
 }
 
 // ============= CONTEXT MENU FOR PLAYLIST =============
@@ -2469,4 +2505,104 @@ document.addEventListener("DOMContentLoaded", () => {
   if (accessToken) {
     fetchAndRenderUserPlaylists();
   }
+  // === Load playlists vào sidebar & play ===
+async function fetchAndRenderPlaylists() {
+  const container = document.querySelector(".library-playlists");
+  if (!container) return;
+  container.innerHTML = "<div class='loading'>Loading playlists...</div>";
+
+  try {
+    const res = await httpRequest.get("me/playlists");
+    const playlists = res.playlists || [];
+    container.innerHTML = "";
+
+    playlists.forEach((pl) => {
+      const item = document.createElement("div");
+      item.className = "library-item";
+      item.innerHTML = `
+        <img src="${pl.image_url || 'placeholder.svg?height=48&width=48'}" class="item-image" />
+        <div class="item-info">
+          <div class="item-title">${pl.name}</div>
+          <div class="item-subtitle">Playlist • ${pl.track_count || 0} songs</div>
+        </div>
+      `;
+      item.addEventListener("click", () => openPlaylist(pl.id));
+      container.appendChild(item);
+    });
+  } catch (err) {
+    console.error("Failed to load playlists:", err);
+    container.innerHTML = "<div class='error'>Cannot load playlists</div>";
+  }
+}
+
+async function openPlaylist(playlistId) {
+  try {
+    const res = await httpRequest.get(`playlists/${playlistId}`);
+    const tracks = res.tracks || [];
+    if (!tracks.length) return alert("Playlist này chưa có bài hát nào");
+
+    window.musicPlayer.playlist = tracks;
+    window.musicPlayer.playlistSource = "playlist";
+    window.musicPlayer.loadAndPlay(0);
+  } catch (err) {
+    console.error("Error opening playlist:", err);
+  }
+}
+
+document.addEventListener("DOMContentLoaded", fetchAndRenderPlaylists);
+
+});
+document.addEventListener("DOMContentLoaded", () => {
+  const addBtn = document.querySelector(".add-btn");
+  const playlistModal = document.getElementById("playlistModal"); // modal có sẵn của bạn
+  const playlistNameInput = document.getElementById("playlistName"); // input đặt tên
+  const addedTracksList = document.getElementById("addedTracksList"); // danh sách hiển thị bài đã thêm
+  const savePlaylistBtn = document.getElementById("savePlaylistBtn");
+  const closePlaylistModal = document.getElementById("closePlaylistModal");
+
+  if (!addBtn || !playlistModal) return;
+
+  // Mở modal và thêm bài đang phát vào playlist tạm
+  addBtn.addEventListener("click", () => {
+    const currentTrack =
+      window.musicPlayer?.playlist?.[window.musicPlayer.currentTrackIndex];
+    if (!currentTrack) return alert("Không có bài hát nào đang phát");
+
+    addTrackToTempPlaylist(currentTrack);
+    renderTempPlaylistTracks();
+    playlistModal.style.display = "flex";
+  });
+
+  // Render danh sách bài hát tạm
+  function renderTempPlaylistTracks() {
+    if (!addedTracksList) return;
+    addedTracksList.innerHTML = "";
+    tempPlaylist.tracks.forEach((t) => {
+      const li = document.createElement("li");
+      li.textContent = `${t.title} – ${t.artist_name || "Unknown"}`;
+      addedTracksList.appendChild(li);
+    });
+  }
+
+  // Nút Lưu Playlist
+  savePlaylistBtn?.addEventListener("click", async () => {
+    const name = playlistNameInput?.value?.trim();
+    if (!name) return alert("Hãy nhập tên playlist");
+    if (tempPlaylist.tracks.length === 0)
+      return alert("Playlist chưa có bài hát nào");
+
+    try {
+      await saveTempPlaylistToServer(name);
+      alert("Tạo playlist thành công!");
+      playlistModal.style.display = "none";
+      fetchAndRenderPlaylists(); // load lại sidebar
+    } catch (err) {
+      console.error("Save playlist error:", err);
+      alert("Không thể lưu playlist. Thử lại sau.");
+    }
+  });
+
+  closePlaylistModal?.addEventListener("click", () => {
+    playlistModal.style.display = "none";
+  });
 });

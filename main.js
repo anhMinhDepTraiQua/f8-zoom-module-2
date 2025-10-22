@@ -70,7 +70,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Close modal with Escape key
-  document.addEventListener("keydown", (e) => {
+  document.addEventListener("keyup", (e) => {
     if (e.key === "Escape" && authModal.classList.contains("show")) {
       closeModal();
     }
@@ -1771,31 +1771,104 @@ document.addEventListener("DOMContentLoaded", () => {
     menu.style.top = `${e.clientY + 5}px`;
   });
 
-  // Khi click chọn like/unlike
-  menu.querySelector(".menu-like-btn").addEventListener("click", async () => {
-    if (!currentTrackId) return;
-    const isLiked = likedSongs.some((t) => t.id == currentTrackId);
+// Khi click chọn like/unlike
+menu.querySelector(".menu-like-btn").addEventListener("click", async () => {
+  if (!currentTrackId) return;
+  const isLiked = likedSongs.some((t) => t.id == currentTrackId);
 
-    try {
-      if (isLiked) {
-        await httpRequest.delete(`tracks/${currentTrackId}/like`);
-        likedSongs = likedSongs.filter((t) => t.id != currentTrackId);
-      } else {
-        await httpRequest.post(`tracks/${currentTrackId}/like`);
-        if (currentTrackInfo) likedSongs.push(currentTrackInfo);
-      }
-
-      localStorage.setItem("likedSongs", JSON.stringify(likedSongs));
-      menu.style.display = "none";
-
-      // Cập nhật UI ngay
-      updateLikedSongsUI();
-    } catch (err) {
-      console.error("Error updating liked songs:", err);
-      alert("Failed to update Liked Songs. Please try again.");
+  try {
+    // Kiểm tra đăng nhập
+    const accessToken = localStorage.getItem("access_token");
+    if (!accessToken) {
+      alert("Please login to like songs");
+      return;
     }
-  });
 
+    if (isLiked) {
+      // Unlike - DELETE request
+      await httpRequest.delete(`tracks/${currentTrackId}/like`);
+      likedSongs = likedSongs.filter((t) => t.id != currentTrackId);
+      console.log(`Unliked track ${currentTrackId}`);
+    } else {
+      // Like - POST request với body trống
+      await httpRequest.post(`tracks/${currentTrackId}/like`, {});
+      if (currentTrackInfo) {
+        likedSongs.push(currentTrackInfo);
+      }
+      console.log(`Liked track ${currentTrackId}`);
+    }
+
+    localStorage.setItem("likedSongs", JSON.stringify(likedSongs));
+    menu.style.display = "none";
+
+    // Cập nhật UI ngay
+    updateLikedSongsUI();
+    
+    // Show success notification
+    showNotification(isLiked ? "Removed from Liked Songs" : "Added to Liked Songs");
+    
+  } catch (err) {
+    console.error("Error updating liked songs:", err);
+    
+    // Xử lý lỗi cụ thể
+    if (err.status === 401) {
+      alert("Please login to like songs");
+    } else if (err.status === 404) {
+      alert("Track not found");
+    } else if (err.status === 409) {
+      alert("Song already in your liked songs");
+    } else {
+      alert(`Failed to update Liked Songs: ${err.message || 'Unknown error'}`);
+    }
+  }
+});
+// Helper: Show notification
+function showNotification(message) {
+  const notification = document.createElement("div");
+  notification.className = "notification";
+  notification.textContent = message;
+  notification.style.cssText = `
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1db954;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 4px;
+    z-index: 10000;
+    animation: slideUp 0.3s ease;
+  `;
+  
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    notification.style.animation = "slideDown 0.3s ease";
+    setTimeout(() => notification.remove(), 300);
+  }, 2000);
+}
+document.addEventListener("DOMContentLoaded", async () => {
+  // ==================== LIKED SONGS DATA ====================
+  let likedSongs = [];
+  
+  // Load liked songs from API
+  try {
+    const accessToken = localStorage.getItem("access_token");
+    if (accessToken) {
+      const response = await httpRequest.get("me/liked-tracks");
+      likedSongs = response.tracks || response.data?.tracks || [];
+      localStorage.setItem("likedSongs", JSON.stringify(likedSongs));
+      console.log(`Loaded ${likedSongs.length} liked songs from API`);
+    } else {
+      // Fallback to localStorage if not logged in
+      likedSongs = JSON.parse(localStorage.getItem("likedSongs")) || [];
+    }
+  } catch (error) {
+    console.warn("Failed to load liked songs from API, using localStorage:", error);
+    likedSongs = JSON.parse(localStorage.getItem("likedSongs")) || [];
+  }
+});
+  // ... rest of code
   // ==================== GẮN SỰ KIỆN CHO SIDEBAR ====================
   const likedSongsItem = document
     .querySelector(".liked-songs")
@@ -1817,741 +1890,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // ==================== KHỞI TẠO LẦN ĐẦU ====================
   updateLikedSongsUI();
 });
-// ============= THÊM VÀO CUỐI FILE main.js =============
 
-// ============= CREATE PLAYLIST FUNCTIONALITY =============
-document.addEventListener("DOMContentLoaded", () => {
-  const createBtn = document.querySelector(".create-btn");
-  
-  // Kiểm tra nếu button không tồn tại thì không chạy
-  if (!createBtn) return;
-  
-  // Tạo modal HTML
-  const createPlaylistModal = document.createElement("div");
-  createPlaylistModal.className = "create-playlist-modal";
-  createPlaylistModal.innerHTML = `
-    <div class="create-playlist-container">
-      <button class="create-playlist-close">
-        <i class="fas fa-times"></i>
-      </button>
-      
-      <h2 class="create-playlist-title">Create New Playlist</h2>
-      
-      <form class="create-playlist-form" id="createPlaylistForm">
-        <div class="playlist-image-upload">
-          <label for="playlistImageInput" class="image-upload-label">
-            <img id="playlistImagePreview" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Crect fill='%23282828' width='200' height='200'/%3E%3Ctext fill='%23b3b3b3' font-size='48' x='50%25' y='50%25' text-anchor='middle' dy='.3em'%3E%2B%3C/text%3E%3C/svg%3E" alt="Playlist cover">
-            <span class="upload-text">Choose photo</span>
-          </label>
-          <input type="file" id="playlistImageInput" accept="image/*" style="display: none;">
-        </div>
-        
-        <div class="form-group">
-          <label for="playlistName">Playlist Name</label>
-          <input type="text" id="playlistName" class="form-input" placeholder="My Playlist #1" required>
-        </div>
-        
-        <div class="form-group">
-          <label>Add Songs</label>
-          <div class="playlist-search-wrapper">
-            <i class="fas fa-search"></i>
-            <input type="text" id="playlistSearchInput" class="form-input" placeholder="Search for songs...">
-          </div>
-          <div class="playlist-search-results" id="playlistSearchResults"></div>
-        </div>
-        
-        <div class="selected-songs-section">
-          <h3>Selected Songs (<span id="selectedCount">0</span>)</h3>
-          <div class="selected-songs-list" id="selectedSongsList"></div>
-        </div>
-        
-        <div class="form-actions">
-          <button type="button" class="btn-cancel">Cancel</button>
-          <button type="submit" class="btn-create">Create Playlist</button>
-        </div>
-      </form>
-    </div>
-  `;
-  
-  document.body.appendChild(createPlaylistModal);
-  
-  // State management
-  let selectedSongs = [];
-  let uploadedImageFile = null;
-  let searchTimeout = null;
-  
-  // DOM elements
-  const closeBtn = createPlaylistModal.querySelector(".create-playlist-close");
-  const cancelBtn = createPlaylistModal.querySelector(".btn-cancel");
-  const form = createPlaylistModal.querySelector("#createPlaylistForm");
-  const imageInput = createPlaylistModal.querySelector("#playlistImageInput");
-  const imagePreview = createPlaylistModal.querySelector("#playlistImagePreview");
-  const searchInput = createPlaylistModal.querySelector("#playlistSearchInput");
-  const searchResults = createPlaylistModal.querySelector("#playlistSearchResults");
-  const selectedList = createPlaylistModal.querySelector("#selectedSongsList");
-  const selectedCount = createPlaylistModal.querySelector("#selectedCount");
-  
-  // Open modal
-  function openCreatePlaylistModal() {
-    createPlaylistModal.classList.add("show");
-    document.body.style.overflow = "hidden";
-    selectedSongs = [];
-    uploadedImageFile = null;
-    updateSelectedSongsList();
-    form.reset();
-    imagePreview.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Crect fill='%23282828' width='200' height='200'/%3E%3Ctext fill='%23b3b3b3' font-size='48' x='50%25' y='50%25' text-anchor='middle' dy='.3em'%3E%2B%3C/text%3E%3C/svg%3E";
-  }
-  
-  // Close modal
-  function closeCreatePlaylistModal() {
-    createPlaylistModal.classList.remove("show");
-    document.body.style.overflow = "auto";
-    searchResults.innerHTML = "";
-  }
-  
-  // Event listeners
-  createBtn.addEventListener("click", openCreatePlaylistModal);
-  closeBtn.addEventListener("click", closeCreatePlaylistModal);
-  cancelBtn.addEventListener("click", closeCreatePlaylistModal);
-  
-  createPlaylistModal.addEventListener("click", (e) => {
-    if (e.target === createPlaylistModal) {
-      closeCreatePlaylistModal();
-    }
-  });
-  
-  // Image upload
-  imageInput.addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      uploadedImageFile = file;
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        imagePreview.src = event.target.result;
-      };
-      reader.readAsDataURL(file);
-    }
-  });
-  
-  // Search songs
-  searchInput.addEventListener("input", (e) => {
-    clearTimeout(searchTimeout);
-    const query = e.target.value.trim();
-    
-    if (query.length === 0) {
-      searchResults.innerHTML = "";
-      return;
-    }
-    
-    searchTimeout = setTimeout(() => {
-      searchSongsForPlaylist(query);
-    }, 300);
-  });
-  
-  async function searchSongsForPlaylist(query) {
-    try {
-      searchResults.innerHTML = '<div class="search-loading">Searching...</div>';
-      
-      const response = await httpRequest.get(
-        `tracks?limit=20&offset=0&search=${encodeURIComponent(query)}`
-      );
-      
-      let tracks = response.tracks || [];
-      const searchTerm = query.toLowerCase().trim();
-      
-      tracks = tracks.filter((track) => {
-        const titleMatch = track.title?.toLowerCase().includes(searchTerm);
-        const artistMatch = track.artist_name?.toLowerCase().includes(searchTerm);
-        return titleMatch || artistMatch;
-      });
-      
-      if (tracks.length === 0) {
-        searchResults.innerHTML = '<div class="search-empty">No songs found</div>';
-        return;
-      }
-      
-      searchResults.innerHTML = "";
-      tracks.forEach((track) => {
-        const isSelected = selectedSongs.some(s => s.id === track.id);
-        const resultItem = document.createElement("div");
-        resultItem.className = `playlist-search-item ${isSelected ? 'selected' : ''}`;
-        resultItem.innerHTML = `
-          <img src="${track.image_url || 'placeholder.svg?height=40&width=40'}" alt="${track.title}">
-          <div class="search-item-info">
-            <div class="search-item-title">${track.title}</div>
-            <div class="search-item-artist">${track.artist_name || 'Unknown Artist'}</div>
-          </div>
-          <button class="add-song-btn" data-track-id="${track.id}">
-            <i class="fas ${isSelected ? 'fa-check' : 'fa-plus'}"></i>
-          </button>
-        `;
-        
-        const addBtn = resultItem.querySelector(".add-song-btn");
-        addBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          toggleSongSelection(track, resultItem, addBtn);
-        });
-        
-        searchResults.appendChild(resultItem);
-      });
-    } catch (error) {
-      console.error("Search error:", error);
-      searchResults.innerHTML = '<div class="search-error">Search failed</div>';
-    }
-  }
-  
-// === toggle selection: chỉ thay selectedSongs, không gọi API hoặc submit ===
-function toggleSongSelection(track, item, btn) {
-  try {
-    const index = selectedSongs.findIndex((s) => String(s.id) === String(track.id));
-
-    if (index > -1) {
-      // remove
-      selectedSongs.splice(index, 1);
-      item.classList.remove("selected");
-      btn.innerHTML = '<i class="fas fa-plus"></i>';
-    } else {
-      // add
-      selectedSongs.push(track);
-      item.classList.add("selected");
-      btn.innerHTML = '<i class="fas fa-check"></i>';
-    }
-
-    updateSelectedSongsList();
-
-    // debug: show current selected IDs in console (remove in prod)
-    console.debug("Selected songs IDs:", selectedSongs.map(s => s.id));
-  } catch (err) {
-    console.error("toggleSongSelection error:", err);
-  }
-}
-
-  
-  function updateSelectedSongsList() {
-    selectedCount.textContent = selectedSongs.length;
-    
-    if (selectedSongs.length === 0) {
-      selectedList.innerHTML = '<div class="empty-selected">No songs selected yet</div>';
-      return;
-    }
-    
-    selectedList.innerHTML = "";
-    selectedSongs.forEach((track, index) => {
-      const item = document.createElement("div");
-      item.className = "selected-song-item";
-      
-      // Sử dụng helper function để format duration
-      const durationText = formatDuration(track.duration);
-      
-      item.innerHTML = `
-        <span class="song-number">${index + 1}</span>
-        <img src="${track.image_url || 'placeholder.svg?height=32&width=32'}" alt="${track.title}">
-        <div class="song-info">
-          <div class="song-title">${track.title}</div>
-          <div class="song-artist">${track.artist_name || 'Unknown Artist'}</div>
-        </div>
-        <button class="remove-song-btn" data-track-id="${track.id}">
-          <i class="fas fa-times"></i>
-        </button>
-      `;
-      
-      const removeBtn = item.querySelector(".remove-song-btn");
-      removeBtn.addEventListener("click", () => {
-        selectedSongs = selectedSongs.filter(s => s.id !== track.id);
-        updateSelectedSongsList();
-        
-        // Update search results if visible
-        const searchItem = searchResults.querySelector(`[data-track-id="${track.id}"]`)?.closest(".playlist-search-item");
-        if (searchItem) {
-          searchItem.classList.remove("selected");
-          const btn = searchItem.querySelector(".add-song-btn");
-          btn.innerHTML = '<i class="fas fa-plus"></i>';
-        }
-      });
-      
-      selectedList.appendChild(item);
-    });
-  }
-  
-// === robust submit handler for Create Playlist ===
-form.addEventListener("submit", async (e) => {
-  e.preventDefault();
-
-  const playlistName = document.querySelector("#playlistName").value.trim();
-
-  if (!playlistName) {
-    alert("Please enter a playlist name");
-    return;
-  }
-
-  if (!selectedSongs || selectedSongs.length === 0) {
-    // bảo người dùng, không tự tạo playlist khi chưa có bài
-    alert("Please select at least one song before creating the playlist.");
-    return;
-  }
-
-  const submitBtn = form.querySelector(".btn-create");
-  submitBtn.disabled = true;
-  const originalText = submitBtn.textContent;
-  submitBtn.textContent = "Creating...";
-
-  try {
-    // 1) Upload image if present
-    let imageUrl = null;
-    if (uploadedImageFile) {
-      const formData = new FormData();
-      formData.append("file", uploadedImageFile);
-
-      const uploadResponse = await fetch("https://spotify.f8team.dev/api/upload", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${localStorage.getItem("access_token")}`
-        },
-        body: formData
-      });
-
-      if (uploadResponse.ok) {
-        const uploadData = await uploadResponse.json();
-        imageUrl = uploadData.url || uploadData.file_url || null;
-      } else {
-        console.warn("Image upload failed, continuing without image");
-      }
-    }
-
-    // 2) Prepare basic payload with track_ids (best-effort)
-    const trackIds = selectedSongs.map(t => t.id);
-    const payload = {
-      name: playlistName,
-      ...(imageUrl ? { image_url: imageUrl } : {}),
-      track_ids: trackIds
-    };
-
-    // 3) Try to create playlist in one call
-    const createResp = await httpRequest.post("playlists", payload);
-    console.debug("Create playlist response:", createResp);
-
-    // 4) Some backends create playlist but ignore track_ids => verify
-    const createdPlaylistId = createResp?.playlist?.id || createResp?.id || null;
-
-    // If playlist has tracks in response, good. Otherwise, fallback to add individually.
-    const respTracks = createResp?.playlist?.tracks || createResp?.tracks;
-    if ((!respTracks || respTracks.length === 0) && createdPlaylistId && trackIds.length > 0) {
-      // fallback: add each track with POST /playlists/:id/tracks
-      for (const tid of trackIds) {
-        try {
-          await httpRequest.post(`playlists/${createdPlaylistId}/tracks`, { track_id: tid });
-        } catch (err) {
-          console.error("Failed to add track via fallback:", tid, err);
-        }
-      }
-    }
-
-    // 5) Clear selected UI + state
-    selectedSongs = [];
-    updateSelectedSongsList();
-    closeCreatePlaylistModal(); // ensure this function still exists in your file
-    alert("Playlist created successfully!");
-    
-    // 6) Refresh sidebar playlists
-    if (typeof fetchAndRenderUserPlaylists === "function") {
-      await fetchAndRenderUserPlaylists();
-    } else if (typeof fetchAndRenderPlaylists === "function") {
-      await fetchAndRenderPlaylists();
-    } else {
-      // generic refresh: try to call fetchAndRenderPlaylists (we added that earlier)
-      try { await fetchAndRenderPlaylists(); } catch(e){/*ignore*/ }
-    }
-  } catch (err) {
-    console.error("Error creating playlist:", err);
-    alert("Failed to create playlist. Please try again.");
-  } finally {
-    submitBtn.disabled = false;
-    submitBtn.textContent = originalText;
-  }
-});
-
-
-});
-
-// ============= FETCH AND RENDER USER PLAYLISTS =============
-async function fetchAndRenderUserPlaylists() {
-  try {
-    const response = await httpRequest.get("me/playlists?limit=50&offset=0");
-    console.log("User playlists response:", response);
-    
-    const playlists = response.playlists || response.data?.playlists || [];
-    
-    // Find library content container
-    const libraryContent = document.querySelector(".library-content");
-    const playlistsContainer = libraryContent?.querySelector(".library-playlists");
-    
-    if (!playlistsContainer) return;
-    
-    // Keep Liked Songs, remove old playlists
-    const likedSongsItem = playlistsContainer.querySelector(".library-item:first-child");
-    playlistsContainer.innerHTML = "";
-    
-    if (likedSongsItem) {
-      playlistsContainer.appendChild(likedSongsItem);
-    }
-    
-    // Render user playlists
-    playlists.forEach((playlist) => {
-      const item = document.createElement("div");
-      item.className = "library-item";
-      item.dataset.playlistId = playlist.id;
-      
-      item.innerHTML = `
-        <img
-          src="${playlist.image_url || 'placeholder.svg?height=48&width=48'}"
-          alt="${playlist.name}"
-          class="item-image"
-        />
-        <div class="item-info">
-          <div class="item-title">${playlist.name}</div>
-          <div class="item-subtitle">Playlist • ${playlist.track_count || 0} songs</div>
-        </div>
-      `;
-      
-      item.addEventListener("click", () => {
-        showPlaylistDetail(playlist.id);
-      });
-      
-      // Context menu for edit/delete
-      item.addEventListener("contextmenu", (e) => {
-        e.preventDefault();
-        showPlaylistContextMenu(e, playlist);
-      });
-      
-      playlistsContainer.appendChild(item);
-    });
-    
-  } catch (error) {
-    console.error("Error fetching user playlists:", error);
-  }
-}
-
-// ============= SHOW PLAYLIST DETAIL =============
-async function showPlaylistDetail(playlistId) {
-  try {
-    const response = await httpRequest.get(`playlists/${playlistId}`);
-    const playlist = response.playlist || response;
-    
-    currentPage = "playlist";
-    
-    // Hide other sections
-    const hitsSection = document.querySelector(".hits-section");
-    const artistsSection = document.querySelector(".artists-section");
-    const artistHero = document.querySelector(".artist-hero");
-    const artistControls = document.querySelector(".artist-controls");
-    const popularSection = document.querySelector(".popular-section");
-    const likedSection = document.querySelector(".liked-songs-section");
-    
-    if (hitsSection) hitsSection.style.display = "none";
-    if (artistsSection) artistsSection.style.display = "none";
-    if (artistHero) artistHero.style.display = "none";
-    if (artistControls) artistControls.style.display = "none";
-    if (popularSection) popularSection.style.display = "none";
-    if (likedSection) likedSection.style.display = "none";
-    
-    // Create or update playlist section
-    let playlistSection = document.querySelector(".playlist-detail-section");
-    
-    if (!playlistSection) {
-      playlistSection = document.createElement("section");
-      playlistSection.className = "playlist-detail-section";
-      document.querySelector(".content-wrapper").appendChild(playlistSection);
-    }
-    
-    playlistSection.style.display = "block";
-    playlistSection.innerHTML = `
-      <div class="playlist-hero">
-        <div class="hero-cover">
-          <img src="${playlist.image_url || 'placeholder.svg?height=232&width=232'}" alt="${playlist.name}">
-        </div>
-        <div class="hero-info">
-          <span class="hero-type">Playlist</span>
-          <h1 class="hero-title">${playlist.name}</h1>
-          <p class="hero-subtitle">${playlist.track_count || playlist.tracks?.length || 0} songs</p>
-          <div class="playlist-actions">
-            <button class="hero-play-btn"><i class="fas fa-play"></i></button>
-            <button class="hero-edit-btn" data-playlist-id="${playlist.id}">
-              <i class="fas fa-edit"></i> Edit
-            </button>
-            <button class="hero-delete-btn" data-playlist-id="${playlist.id}">
-              <i class="fas fa-trash"></i> Delete
-            </button>
-          </div>
-        </div>
-      </div>
-      <div class="track-list playlist-track-list"></div>
-    `;
-    
-    // Render tracks
-    const trackList = playlistSection.querySelector(".playlist-track-list");
-    const tracks = playlist.tracks || [];
-    
-    if (tracks.length === 0) {
-      trackList.innerHTML = '<div class="empty">This playlist has no songs yet.</div>';
-    } else {
-      tracks.forEach((track, index) => {
-        const item = document.createElement("div");
-        item.className = "track-item";
-        item.dataset.trackId = track.id;
-        
-        item.innerHTML = `
-          <div class="track-number">${index + 1}</div>
-          <div class="track-image">
-            <img src="${track.image_url || 'placeholder.svg?height=40&width=40'}" alt="${track.title}">
-          </div>
-          <div class="track-info">
-            <div class="track-name">${track.title}</div>
-            <div class="track-artist">${track.artist_name || 'Unknown Artist'}</div>
-          </div>
-          <div class="track-duration">${formatDuration(track.duration)}</div>
-          <button class="track-remove-btn" data-track-id="${track.id}">
-            <i class="fas fa-times"></i>
-          </button>
-        `;
-        
-        item.addEventListener("click", (e) => {
-          if (!e.target.closest(".track-remove-btn")) {
-            if (window.musicPlayer) {
-              window.musicPlayer.playlist = tracks;
-              window.musicPlayer.playlistSource = "playlist";
-              window.musicPlayer.loadAndPlay(index);
-            }
-          }
-        });
-        
-        const removeBtn = item.querySelector(".track-remove-btn");
-        removeBtn.addEventListener("click", async (e) => {
-          e.stopPropagation();
-          if (confirm("Remove this song from playlist?")) {
-            try {
-              await httpRequest.delete(`playlists/${playlistId}/tracks/${track.id}`);
-              showPlaylistDetail(playlistId); // Refresh
-            } catch (error) {
-              console.error("Error removing track:", error);
-              alert("Failed to remove track");
-            }
-          }
-        });
-        
-        trackList.appendChild(item);
-      });
-    }
-    
-    // Play button
-    const playBtn = playlistSection.querySelector(".hero-play-btn");
-    playBtn.addEventListener("click", () => {
-      if (window.musicPlayer && tracks.length > 0) {
-        window.musicPlayer.playlist = tracks;
-        window.musicPlayer.playlistSource = "playlist";
-        window.musicPlayer.loadAndPlay(0);
-      }
-    });
-    
-    // Edit button
-    const editBtn = playlistSection.querySelector(".hero-edit-btn");
-    editBtn.addEventListener("click", () => {
-      openEditPlaylistModal(playlist);
-    });
-    
-    // Delete button
-    const deleteBtn = playlistSection.querySelector(".hero-delete-btn");
-    deleteBtn.addEventListener("click", async () => {
-      if (confirm(`Delete playlist "${playlist.name}"?`)) {
-        try {
-          await httpRequest.delete(`playlists/${playlistId}`);
-          await fetchAndRenderUserPlaylists();
-          showHomePage();
-          alert("Playlist deleted successfully!");
-        } catch (error) {
-          console.error("Error deleting playlist:", error);
-          alert("Failed to delete playlist");
-        }
-      }
-    });
-    
-  } catch (error) {
-    console.error("Error loading playlist:", error);
-    alert("Failed to load playlist");
-  }
-}
-
-// ============= EDIT PLAYLIST =============
-function openEditPlaylistModal(playlist) {
-  const editModal = document.createElement("div");
-  editModal.className = "create-playlist-modal show";
-  editModal.innerHTML = `
-    <div class="create-playlist-container">
-      <button class="create-playlist-close">
-        <i class="fas fa-times"></i>
-      </button>
-      
-      <h2 class="create-playlist-title">Edit Playlist</h2>
-      
-      <form class="create-playlist-form" id="editPlaylistForm">
-        <div class="playlist-image-upload">
-          <label for="editPlaylistImageInput" class="image-upload-label">
-            <img id="editPlaylistImagePreview" src="${playlist.image_url || 'placeholder.svg?height=200&width=200'}" alt="Playlist cover">
-            <span class="upload-text">Change photo</span>
-          </label>
-          <input type="file" id="editPlaylistImageInput" accept="image/*" style="display: none;">
-        </div>
-        
-        <div class="form-group">
-          <label for="editPlaylistName">Playlist Name</label>
-          <input type="text" id="editPlaylistName" class="form-input" value="${playlist.name}" required>
-        </div>
-        
-        <div class="form-actions">
-          <button type="button" class="btn-cancel">Cancel</button>
-          <button type="submit" class="btn-create">Save Changes</button>
-        </div>
-      </form>
-    </div>
-  `;
-  
-  document.body.appendChild(editModal);
-  document.body.style.overflow = "hidden";
-  
-  let uploadedImageFile = null;
-  const closeBtn = editModal.querySelector(".create-playlist-close");
-  const cancelBtn = editModal.querySelector(".btn-cancel");
-  const form = editModal.querySelector("#editPlaylistForm");
-  const imageInput = editModal.querySelector("#editPlaylistImageInput");
-  const imagePreview = editModal.querySelector("#editPlaylistImagePreview");
-  
-  closeBtn.addEventListener("click", () => {
-    editModal.remove();
-    document.body.style.overflow = "auto";
-  });
-  
-  cancelBtn.addEventListener("click", () => {
-    editModal.remove();
-    document.body.style.overflow = "auto";
-  });
-  
-  imageInput.addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      uploadedImageFile = file;
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        imagePreview.src = event.target.result;
-      };
-      reader.readAsDataURL(file);
-    }
-  });
-}
-
-// ============= CONTEXT MENU FOR PLAYLIST =============
-function showPlaylistContextMenu(event, playlist) {
-  let contextMenu = document.querySelector(".playlist-context-menu");
-  
-  if (!contextMenu) {
-    contextMenu = document.createElement("div");
-    contextMenu.className = "playlist-context-menu";
-    document.body.appendChild(contextMenu);
-  }
-  
-  contextMenu.innerHTML = `
-    <button class="context-menu-item" data-action="edit">
-      <i class="fas fa-edit"></i>
-      <span>Edit Playlist</span>
-    </button>
-    <button class="context-menu-item danger" data-action="delete">
-      <i class="fas fa-trash"></i>
-      <span>Delete Playlist</span>
-    </button>
-  `;
-  
-  contextMenu.style.display = "block";
-  contextMenu.style.left = `${event.clientX}px`;
-  contextMenu.style.top = `${event.clientY}px`;
-  
-  const editBtn = contextMenu.querySelector('[data-action="edit"]');
-  const deleteBtn = contextMenu.querySelector('[data-action="delete"]');
-  
-  editBtn.addEventListener("click", () => {
-    openEditPlaylistModal(playlist);
-    contextMenu.style.display = "none";
-  });
-  
-  deleteBtn.addEventListener("click", async () => {
-    if (confirm(`Delete playlist "${playlist.name}"?`)) {
-      try {
-        await httpRequest.delete(`playlists/${playlist.id}`);
-        await fetchAndRenderUserPlaylists();
-        alert("Playlist deleted successfully!");
-      } catch (error) {
-        console.error("Error deleting playlist:", error);
-        alert("Failed to delete playlist");
-      }
-    }
-    contextMenu.style.display = "none";
-  });
-  
-  document.addEventListener("click", () => {
-    contextMenu.style.display = "none";
-  }, { once: true });
-}
-
-// ============= LOAD PLAYLISTS ON PAGE LOAD =============
-document.addEventListener("DOMContentLoaded", () => {
-  const accessToken = localStorage.getItem("access_token");
-  if (accessToken) {
-    fetchAndRenderUserPlaylists();
-  }
-  // === Load playlists vào sidebar & play ===
-async function fetchAndRenderPlaylists() {
-  const container = document.querySelector(".library-playlists");
-  if (!container) return;
-  container.innerHTML = "<div class='loading'>Loading playlists...</div>";
-
-  try {
-    const res = await httpRequest.get("me/playlists");
-    const playlists = res.playlists || [];
-    container.innerHTML = "";
-
-    playlists.forEach((pl) => {
-      const item = document.createElement("div");
-      item.className = "library-item";
-      item.innerHTML = `
-        <img src="${pl.image_url || 'placeholder.svg?height=48&width=48'}" class="item-image" />
-        <div class="item-info">
-          <div class="item-title">${pl.name}</div>
-          <div class="item-subtitle">Playlist • ${pl.track_count || 0} songs</div>
-        </div>
-      `;
-      item.addEventListener("click", () => openPlaylist(pl.id));
-      container.appendChild(item);
-    });
-  } catch (err) {
-    console.error("Failed to load playlists:", err);
-    container.innerHTML = "<div class='error'>Cannot load playlists</div>";
-  }
-}
-
-async function openPlaylist(playlistId) {
-  try {
-    const res = await httpRequest.get(`playlists/${playlistId}`);
-    const tracks = res.tracks || [];
-    if (!tracks.length) return alert("Playlist này chưa có bài hát nào");
-
-    window.musicPlayer.playlist = tracks;
-    window.musicPlayer.playlistSource = "playlist";
-    window.musicPlayer.loadAndPlay(0);
-  } catch (err) {
-    console.error("Error opening playlist:", err);
-  }
-}
-
-document.addEventListener("DOMContentLoaded", fetchAndRenderPlaylists);
-
-});
 document.addEventListener("DOMContentLoaded", () => {
   const addBtn = document.querySelector(".add-btn");
   const playlistModal = document.getElementById("playlistModal"); // modal có sẵn của bạn

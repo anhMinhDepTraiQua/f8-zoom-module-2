@@ -1010,12 +1010,10 @@ async function saveTempPlaylistToServer(name) {
   if (!name) throw new Error("Playlist name required");
   if (!tempPlaylist.tracks.length) throw new Error("No tracks in playlist");
 
-  // 1️⃣ Tạo playlist trống
   const created = await httpRequest.post("playlists", { name });
   const playlistId = created?.playlist?.id;
   if (!playlistId) throw new Error("Failed to create playlist ID");
 
-  // 2️⃣ Gửi track_id từng bài vào playlist đó
   for (const track of tempPlaylist.tracks) {
     try {
       await httpRequest.post(`playlists/${playlistId}/tracks`, {
@@ -1026,7 +1024,6 @@ async function saveTempPlaylistToServer(name) {
     }
   }
 
-  // 3️⃣ Xoá dữ liệu tạm
   clearTempPlaylist();
   return created;
 }
@@ -1944,4 +1941,659 @@ document.addEventListener("DOMContentLoaded", () => {
   closePlaylistModal?.addEventListener("click", () => {
     playlistModal.style.display = "none";
   });
+});
+// ==================== PLAYLIST MANAGEMENT ====================
+document.addEventListener("DOMContentLoaded", async () => {
+  const createBtn = document.querySelector(".create-btn");
+  const playlistModal = document.getElementById("playlistModal");
+  const playlistModalClose = document.getElementById("playlistModalClose");
+  const playlistForm = document.getElementById("playlistForm");
+  const playlistNameInput = document.getElementById("playlistName");
+  const playlistDescriptionInput = document.getElementById("playlistDescription");
+  const playlistImageInput = document.getElementById("playlistImage");
+  const libraryContent = document.querySelector(".library-content");
+
+  let selectedTracksForPlaylist = []; // Danh sách bài hát được chọn để thêm vào playlist
+
+  // Mở modal tạo playlist
+  if (createBtn && playlistModal) {
+    createBtn.addEventListener("click", () => {
+      playlistModal.classList.add("show");
+      document.body.style.overflow = "hidden";
+      
+      // Reset form và selected tracks
+      if (playlistForm) playlistForm.reset();
+      selectedTracksForPlaylist = [];
+      
+      // Reset preview
+      const preview = playlistModal.querySelector(".image-preview");
+      if (preview) preview.style.display = "none";
+      
+      // Hiển thị phần chọn bài hát
+      renderTrackSelector();
+    });
+  }
+
+  // Preview ảnh khi upload
+  if (playlistImageInput) {
+    playlistImageInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          let preview = playlistModal.querySelector(".image-preview");
+          if (!preview) {
+            preview = document.createElement("div");
+            preview.className = "image-preview";
+            preview.style.cssText = `
+              margin-top: 12px;
+              width: 200px;
+              height: 200px;
+              border-radius: 8px;
+              overflow: hidden;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            `;
+            playlistImageInput.parentElement.appendChild(preview);
+          }
+          preview.innerHTML = `<img src="${e.target.result}" style="width: 100%; height: 100%; object-fit: cover;">`;
+          preview.style.display = "block";
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+
+  // Render phần chọn bài hát trong modal
+  function renderTrackSelector() {
+    let trackSelector = playlistModal.querySelector(".track-selector");
+    if (!trackSelector) {
+      trackSelector = document.createElement("div");
+      trackSelector.className = "track-selector";
+      trackSelector.style.cssText = `
+        margin-top: 20px;
+        border-top: 1px solid rgba(255,255,255,0.1);
+        padding-top: 20px;
+      `;
+      
+      trackSelector.innerHTML = `
+        <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">Add Songs (Optional)</h3>
+        <div class="search-tracks" style="margin-bottom: 16px;">
+          <input type="text" id="trackSearchInput" placeholder="Search for songs..." 
+            style="width: 100%; padding: 12px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); 
+            border-radius: 4px; color: white; font-size: 14px;">
+        </div>
+        <div class="selected-tracks-list" style="max-height: 200px; overflow-y: auto; margin-bottom: 12px;"></div>
+        <div class="available-tracks-list" style="max-height: 300px; overflow-y: auto;"></div>
+      `;
+      
+      playlistForm.insertBefore(trackSelector, playlistForm.querySelector('button[type="submit"]'));
+    }
+
+    updateSelectedTracksList();
+    loadAvailableTracks();
+    setupTrackSearch();
+  }
+
+  // Load danh sách bài hát có thể thêm
+  async function loadAvailableTracks(searchQuery = "") {
+    const availableList = playlistModal.querySelector(".available-tracks-list");
+    if (!availableList) return;
+
+    availableList.innerHTML = '<div style="text-align: center; padding: 20px; color: rgba(255,255,255,0.6);">Loading...</div>';
+
+    try {
+      const endpoint = searchQuery 
+        ? `tracks?limit=20&offset=0&search=${encodeURIComponent(searchQuery)}`
+        : "tracks/trending?limit=20";
+      
+      const response = await httpRequest.get(endpoint);
+      let tracks = response.tracks || [];
+
+      if (searchQuery) {
+        const term = searchQuery.toLowerCase();
+        tracks = tracks.filter(t => 
+          t.title?.toLowerCase().includes(term) || 
+          t.artist_name?.toLowerCase().includes(term)
+        );
+      }
+
+      if (tracks.length === 0) {
+        availableList.innerHTML = '<div style="text-align: center; padding: 20px; color: rgba(255,255,255,0.6);">No songs found</div>';
+        return;
+      }
+
+      availableList.innerHTML = "";
+      tracks.forEach(track => {
+        const isSelected = selectedTracksForPlaylist.some(t => t.id === track.id);
+        
+        const trackItem = document.createElement("div");
+        trackItem.className = "track-selector-item";
+        trackItem.style.cssText = `
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 8px;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: background 0.2s;
+          ${isSelected ? 'background: rgba(29, 185, 84, 0.2);' : ''}
+        `;
+        
+        trackItem.innerHTML = `
+          <img src="${track.image_url || 'placeholder.svg?height=40&width=40'}" 
+            style="width: 40px; height: 40px; border-radius: 4px;">
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              ${track.title}
+            </div>
+            <div style="font-size: 12px; color: rgba(255,255,255,0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              ${track.artist_name || 'Unknown'}
+            </div>
+          </div>
+          <div class="track-select-icon" style="width: 24px; height: 24px; border: 2px solid rgba(255,255,255,0.6); 
+            border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            ${isSelected ? '<i class="fas fa-check" style="color: #1db954; font-size: 12px;"></i>' : ''}
+          </div>
+        `;
+
+        trackItem.addEventListener("mouseenter", () => {
+          if (!isSelected) trackItem.style.background = "rgba(255,255,255,0.1)";
+        });
+        trackItem.addEventListener("mouseleave", () => {
+          if (!isSelected) trackItem.style.background = "";
+        });
+
+        trackItem.addEventListener("click", () => {
+          if (isSelected) {
+            selectedTracksForPlaylist = selectedTracksForPlaylist.filter(t => t.id !== track.id);
+          } else {
+            selectedTracksForPlaylist.push(track);
+          }
+          loadAvailableTracks(searchQuery);
+          updateSelectedTracksList();
+        });
+
+        availableList.appendChild(trackItem);
+      });
+
+    } catch (error) {
+      console.error("Error loading tracks:", error);
+      availableList.innerHTML = '<div style="text-align: center; padding: 20px; color: rgba(255,255,255,0.6);">Failed to load songs</div>';
+    }
+  }
+
+  // Setup search tracks
+  function setupTrackSearch() {
+    const searchInput = playlistModal.querySelector("#trackSearchInput");
+    if (!searchInput) return;
+
+    let searchTimeout;
+    searchInput.addEventListener("input", (e) => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        loadAvailableTracks(e.target.value);
+      }, 300);
+    });
+  }
+
+  // Update danh sách bài hát đã chọn
+  function updateSelectedTracksList() {
+    const selectedList = playlistModal.querySelector(".selected-tracks-list");
+    if (!selectedList) return;
+
+    if (selectedTracksForPlaylist.length === 0) {
+      selectedList.innerHTML = "";
+      return;
+    }
+
+    selectedList.innerHTML = `
+      <div style="font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #1db954;">
+        Selected: ${selectedTracksForPlaylist.length} songs
+      </div>
+    `;
+
+    selectedTracksForPlaylist.forEach(track => {
+      const item = document.createElement("div");
+      item.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        background: rgba(29, 185, 84, 0.1);
+        border-radius: 4px;
+        margin-bottom: 4px;
+      `;
+      
+      item.innerHTML = `
+        <img src="${track.image_url || 'placeholder.svg?height=32&width=32'}" 
+          style="width: 32px; height: 32px; border-radius: 4px;">
+        <div style="flex: 1; min-width: 0; font-size: 13px;">
+          <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${track.title}</div>
+        </div>
+        <button class="remove-track-btn" style="background: none; border: none; color: rgba(255,255,255,0.6); 
+          cursor: pointer; padding: 4px;">
+          <i class="fas fa-times"></i>
+        </button>
+      `;
+
+      item.querySelector(".remove-track-btn").addEventListener("click", () => {
+        selectedTracksForPlaylist = selectedTracksForPlaylist.filter(t => t.id !== track.id);
+        updateSelectedTracksList();
+        loadAvailableTracks(playlistModal.querySelector("#trackSearchInput")?.value || "");
+      });
+
+      selectedList.appendChild(item);
+    });
+  }
+
+  // Đóng modal
+  if (playlistModalClose) {
+    playlistModalClose.addEventListener("click", () => {
+      playlistModal.classList.remove("show");
+      document.body.style.overflow = "auto";
+    });
+  }
+
+  if (playlistModal) {
+    playlistModal.addEventListener("click", (e) => {
+      if (e.target === playlistModal) {
+        playlistModal.classList.remove("show");
+        document.body.style.overflow = "auto";
+      }
+    });
+  }
+
+  // Submit form tạo playlist
+  if (playlistForm) {
+    playlistForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      
+      const name = playlistNameInput.value.trim();
+      const description = playlistDescriptionInput.value.trim();
+      const imageFile = playlistImageInput.files && playlistImageInput.files[0];
+      
+      if (!name) {
+        alert("Please enter a playlist name");
+        return;
+      }
+
+      try {
+        const submitBtn = playlistForm.querySelector('button[type="submit"]');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = "Creating...";
+        }
+
+        // 1. Tạo playlist
+        const playlistData = { name };
+        if (description) playlistData.description = description;
+
+        const response = await httpRequest.post("playlists", playlistData);
+        const playlistId = response.playlist?.id || response.id;
+        console.log("Playlist created:", playlistId);
+
+        // 2. Upload image nếu có
+        if (imageFile && playlistId) {
+          try {
+            const formData = new FormData();
+            formData.append("image", imageFile);
+            
+            // Thử upload với FormData
+            await fetch(`https://spotify.f8team.dev/api/playlists/${playlistId}/image`, {
+              method: "PUT",
+              headers: {
+                "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+              },
+              body: formData
+            });
+            console.log("Image uploaded");
+          } catch (imgError) {
+            console.log("Image upload failed:", imgError);
+          }
+        }
+
+        // 3. Thêm các bài hát đã chọn vào playlist
+        if (selectedTracksForPlaylist.length > 0) {
+          for (const track of selectedTracksForPlaylist) {
+            try {
+              await httpRequest.post(`playlists/${playlistId}/tracks`, {
+                track_id: track.id
+              });
+            } catch (err) {
+              console.error(`Failed to add track ${track.id}:`, err);
+            }
+          }
+          console.log(`Added ${selectedTracksForPlaylist.length} tracks to playlist`);
+        }
+
+        // Đóng modal
+        playlistModal.classList.remove("show");
+        document.body.style.overflow = "auto";
+
+        // Refresh playlist
+        await fetchAndRenderPlaylists();
+        showNotification("Playlist created successfully!");
+
+        // Reset
+        playlistForm.reset();
+        selectedTracksForPlaylist = [];
+        
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Create";
+        }
+
+      } catch (error) {
+        console.error("Error creating playlist:", error);
+        alert("Failed to create playlist. Please try again.");
+        
+        const submitBtn = playlistForm.querySelector('button[type="submit"]');
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Create";
+        }
+      }
+    });
+  }
+
+  // Fetch và render playlists
+  async function fetchAndRenderPlaylists() {
+    try {
+      const accessToken = localStorage.getItem("access_token");
+      if (!accessToken) return;
+
+      const response = await httpRequest.get("me/playlists");
+      const playlists = response.playlists || response.data?.playlists || [];
+      
+      renderPlaylistsInSidebar(playlists);
+
+    } catch (error) {
+      console.error("Error fetching playlists:", error);
+    }
+  }
+
+  // Render playlists trong sidebar
+  function renderPlaylistsInSidebar(playlists) {
+    if (!libraryContent) return;
+
+    const likedSongsItem = libraryContent.querySelector(".library-item");
+    if (!likedSongsItem) return;
+
+    const oldPlaylistItems = libraryContent.querySelectorAll(".library-item.playlist-item");
+    oldPlaylistItems.forEach(item => item.remove());
+
+    playlists.forEach(playlist => {
+      const playlistItem = createPlaylistItem(playlist);
+      likedSongsItem.insertAdjacentElement("afterend", playlistItem);
+    });
+  }
+
+  // Tạo playlist item
+  function createPlaylistItem(playlist) {
+    const item = document.createElement("div");
+    item.className = "library-item playlist-item";
+    item.dataset.playlistId = playlist.id;
+
+    const imageUrl = playlist.image_url || "placeholder.svg?height=48&width=48";
+    const trackCount = playlist.track_count || 0;
+
+    item.innerHTML = `
+      <img src="${imageUrl}" alt="${playlist.name}" class="item-image" />
+      <div class="item-info">
+        <div class="item-title">${playlist.name}</div>
+        <div class="item-subtitle">Playlist • ${trackCount} songs</div>
+      </div>
+    `;
+
+    item.addEventListener("click", () => {
+      showPlaylistDetail(playlist.id);
+    });
+
+    return item;
+  }
+
+  // Hiển thị chi tiết playlist
+  async function showPlaylistDetail(playlistId) {
+    try {
+      console.log("Loading playlist:", playlistId);
+
+      // Ẩn home sections
+      const hitsSection = document.querySelector(".hits-section");
+      const artistsSection = document.querySelector(".artists-section");
+      if (hitsSection) hitsSection.style.display = "none";
+      if (artistsSection) artistsSection.style.display = "none";
+
+      // Ẩn artist profile sections
+      const artistHero = document.querySelector(".artist-hero");
+      const artistControls = document.querySelector(".artist-controls");
+      const popularSection = document.querySelector(".popular-section");
+      if (artistHero) artistHero.style.display = "none";
+      if (artistControls) artistControls.style.display = "none";
+      if (popularSection) popularSection.style.display = "none";
+
+      // Hiển thị back button
+      const backBtn = document.querySelector(".back-btn");
+      if (backBtn) backBtn.style.display = "flex";
+
+      // Fetch playlist
+      const playlist = await httpRequest.get(`playlists/${playlistId}`);
+      console.log("Playlist data:", playlist);
+
+      // Render
+      renderPlaylistDetailPage(playlist);
+
+    } catch (error) {
+      console.error("Error loading playlist:", error);
+      alert("Failed to load playlist");
+      hideArtistProfile();
+    }
+  }
+
+  // Render chi tiết playlist
+  function renderPlaylistDetailPage(playlist) {
+    const contentWrapper = document.querySelector(".content-wrapper");
+    if (!contentWrapper) return;
+
+    const tracks = playlist.tracks || [];
+    const totalDuration = tracks.reduce((sum, t) => sum + (t.duration || 0), 0);
+    const hours = Math.floor(totalDuration / 3600);
+    const minutes = Math.floor((totalDuration % 3600) / 60);
+    const durationText = hours > 0 ? `${hours} hr ${minutes} min` : `${minutes} min`;
+
+    // Xác định image
+    let imageUrl = playlist.image_url;
+    if (!imageUrl && tracks.length > 0) imageUrl = tracks[0].image_url;
+    if (!imageUrl) imageUrl = `https://via.placeholder.com/300/1db954/ffffff?text=${encodeURIComponent(playlist.name.substring(0, 2).toUpperCase())}`;
+
+    // Clear và render mới
+    contentWrapper.innerHTML = "";
+
+    // Hero section
+    const heroSection = document.createElement("section");
+    heroSection.className = "playlist-detail-hero";
+    heroSection.style.cssText = `
+      background: linear-gradient(180deg, rgba(0,0,0,0.6) 0%, #121212 100%);
+      padding: 80px 32px 24px;
+      display: flex;
+      align-items: flex-end;
+      gap: 24px;
+      min-height: 340px;
+    `;
+
+    heroSection.innerHTML = `
+      <div style="width: 232px; height: 232px; box-shadow: 0 4px 60px rgba(0,0,0,.5); flex-shrink: 0; border-radius: 4px; overflow: hidden;">
+        <img src="${imageUrl}" alt="${playlist.name}" style="width: 100%; height: 100%; object-fit: cover;">
+      </div>
+      <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 8px;">
+        <span style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">Playlist</span>
+        <h1 style="font-size: 48px; font-weight: 900; line-height: 1.2; margin: 8px 0; word-break: break-word;">${playlist.name}</h1>
+        ${playlist.description ? `<p style="font-size: 14px; color: rgba(255,255,255,0.7); margin: 8px 0;">${playlist.description}</p>` : ''}
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; margin-top: 8px;">
+          <span>${playlist.owner?.username || 'Unknown'}</span>
+          <span style="font-size: 10px;">•</span>
+          <span>${tracks.length} songs</span>
+          ${totalDuration > 0 ? `<span style="font-size: 10px;">•</span><span style="color: rgba(255,255,255,0.7);">${durationText}</span>` : ''}
+        </div>
+      </div>
+    `;
+    contentWrapper.appendChild(heroSection);
+
+    // Controls
+const controlsSection = document.createElement("section");
+controlsSection.style.cssText = `
+  padding: 24px 32px;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  background: linear-gradient(rgba(0,0,0,.6) 0, #121212 100%);
+`;
+controlsSection.innerHTML = `
+  <button class="play-btn-large" style="width: 56px; height: 56px; border-radius: 50%; background: #1db954; border: none; 
+    color: #000; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; 
+    transition: transform 0.2s;">
+    <i class="fas fa-play" style="margin-left: 3px;"></i>
+  </button>
+  <button class="delete-playlist-btn" style="background: transparent; border: 1px solid rgba(255,255,255,0.3);
+    color: rgba(255,255,255,0.8); padding: 8px 16px; border-radius: 20px; font-size: 14px;
+    cursor: pointer; transition: all 0.2s;">
+    <i class="fas fa-trash"></i> Delete Playlist
+  </button>
+`;
+contentWrapper.appendChild(controlsSection);
+
+// Nút play animation
+const playBtn = controlsSection.querySelector(".play-btn-large");
+playBtn.addEventListener("mouseenter", () => playBtn.style.transform = "scale(1.06)");
+playBtn.addEventListener("mouseleave", () => playBtn.style.transform = "scale(1)");
+playBtn.addEventListener("click", () => {
+  if (tracks.length > 0 && window.musicPlayer) {
+    window.musicPlayer.playlist = tracks;
+    window.musicPlayer.playlistSource = "playlist";
+    window.musicPlayer.loadAndPlay(0);
+  }
+});
+
+//Nút XÓA PLAYLIST
+const deleteBtn = controlsSection.querySelector(".delete-playlist-btn");
+deleteBtn.addEventListener("mouseenter", () => {
+  deleteBtn.style.background = "rgba(255,0,0,0.2)";
+  deleteBtn.style.color = "#ff4d4d";
+});
+deleteBtn.addEventListener("mouseleave", () => {
+  deleteBtn.style.background = "transparent";
+  deleteBtn.style.color = "rgba(255,255,255,0.8)";
+});
+
+deleteBtn.addEventListener("click", async () => {
+  if (!confirm("Are you sure you want to delete this playlist?")) return;
+
+  try {
+    const accessToken = localStorage.getItem("access_token");
+    await fetch(`https://spotify.f8team.dev/api/playlists/${playlist.id}`, {
+      method: "DELETE",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`
+      }
+    });
+
+    showNotification("Playlist deleted successfully!");
+
+    // Quay về giao diện chính
+    const contentWrapper = document.querySelector(".content-wrapper");
+    if (contentWrapper) contentWrapper.innerHTML = "";
+    const hitsSection = document.querySelector(".hits-section");
+    const artistsSection = document.querySelector(".artists-section");
+    if (hitsSection) hitsSection.style.display = "";
+    if (artistsSection) artistsSection.style.display = "";
+
+    const backBtn = document.querySelector(".back-btn");
+    if (backBtn) backBtn.style.display = "none";
+
+    await fetchAndRenderPlaylists();
+  } catch (err) {
+    console.error("Failed to delete playlist:", err);
+    alert("Failed to delete playlist. Please try again.");
+  }
+});
+
+  }
+
+  // Render tracks
+  function renderPlaylistTracks(tracks, container) {
+    container.innerHTML = "";
+
+    tracks.forEach((track, index) => {
+      const item = document.createElement("div");
+      item.className = "track-item";
+      item.style.cssText = `
+        display: grid;
+        grid-template-columns: 40px 1fr auto 40px;
+        gap: 16px;
+        padding: 8px 16px;
+        border-radius: 4px;
+        align-items: center;
+        transition: background 0.2s;
+        cursor: pointer;
+      `;
+
+      item.innerHTML = `
+        <div style="text-align: center; color: rgba(255,255,255,0.6);">${index + 1}</div>
+        <div style="display: flex; gap: 12px; align-items: center; min-width: 0;">
+          <img src="${track.image_url || 'placeholder.svg?height=40&width=40'}" 
+            style="width: 40px; height: 40px; border-radius: 4px;">
+          <div style="min-width: 0;">
+            <div style="font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              ${track.title}
+            </div>
+            <div style="font-size: 12px; color: rgba(255,255,255,0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              ${track.artist_name || 'Unknown'}
+            </div>
+          </div>
+        </div>
+        <div style="color: rgba(255,255,255,0.6); font-size: 14px;">${formatDuration(track.duration)}</div>
+        <button class="track-menu-btn" style="background: none; border: none; color: rgba(255,255,255,0.6); 
+          cursor: pointer; padding: 8px;">
+          <i class="fas fa-ellipsis-h"></i>
+        </button>
+      `;
+
+      item.addEventListener("mouseenter", () => item.style.background = "rgba(255,255,255,0.1)");
+      item.addEventListener("mouseleave", () => item.style.background = "");
+      item.addEventListener("click", () => {
+        if (window.musicPlayer) {
+          window.musicPlayer.playlist = tracks;
+          window.musicPlayer.playlistSource = "playlist";
+          window.musicPlayer.loadAndPlay(index);
+        }
+      });
+
+      container.appendChild(item);
+    });
+  }
+
+  function formatDuration(seconds) {
+    if (!seconds) return "--:--";
+    const min = Math.floor(seconds / 60);
+    const sec = Math.floor(seconds % 60).toString().padStart(2, "0");
+    return `${min}:${sec}`;
+  }
+
+  function showNotification(message) {
+    const notification = document.createElement("div");
+    notification.textContent = message;
+    notification.style.cssText = `
+      position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+      background: #1db954; color: white; padding: 12px 24px; border-radius: 4px;
+      z-index: 10000; animation: slideUp 0.3s ease;
+    `;
+    document.body.appendChild(notification);
+    setTimeout(() => {
+      notification.style.animation = "slideDown 0.3s ease";
+      setTimeout(() => notification.remove(), 300);
+    }, 2000);
+  }
+
+  // Load playlists
+  await fetchAndRenderPlaylists();
+  window.fetchAndRenderPlaylists = fetchAndRenderPlaylists;
 });

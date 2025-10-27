@@ -650,6 +650,13 @@ function showHomePage() {
   currentPage = "home";
   
   const contentWrapper = document.querySelector(".content-wrapper");
+
+  // Ensure the music player will accept hits as the active playlist source
+  // so that fetchAndRenderTodaysBiggestHits can replace the current playlist.
+  if (window.musicPlayer) {
+    // Clear or reset the playlistSource so the hits fetch will set the playlist.
+    window.musicPlayer.playlistSource = null;
+  }
   
   // Kiểm tra xem các section home có tồn tại không
   let hitsSection = document.querySelector(".hits-section");
@@ -716,6 +723,10 @@ function showHomePage() {
     // Nếu đã tồn tại, chỉ cần hiển thị lại
     hitsSection.style.display = "block";
     artistsSection.style.display = "block";
+
+    // Also trigger a refresh of hits so the music player's playlist is restored to home hits
+    // This ensures that after visiting an artist, returning home replaces the playlist.
+    fetchAndRenderTodaysBiggestHits();
   }
 }
 function renderArtistPopularTracks(tracks) {
@@ -1160,7 +1171,6 @@ async function saveTempPlaylistToServer(name) {
 let isShowingArtistProfile = false;
 let currentArtistId = null;
 
-// Thêm vào cuối file main.js
 
 // Search Functionality
 document.addEventListener("DOMContentLoaded", () => {
@@ -1498,7 +1508,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 });
-// ==== CODE MỚI THÊM VÀO CUỐI FILE main.js ====
 // ====== Replace previous "Artists tab" logic with this safe version ======
 document.addEventListener("DOMContentLoaded", () => {
   const libraryContent = document.querySelector(".library-content");
@@ -2312,265 +2321,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // Render playlists trong sidebar
-  function renderPlaylistsInSidebar(playlists) {
-    if (!libraryContent) return;
-
-    const likedSongsItem = libraryContent.querySelector(".library-item");
-    if (!likedSongsItem) return;
-
-    const oldPlaylistItems = libraryContent.querySelectorAll(".library-item.playlist-item");
-    oldPlaylistItems.forEach(item => item.remove());
-
-    playlists.forEach(playlist => {
-      const playlistItem = createPlaylistItem(playlist);
-      likedSongsItem.insertAdjacentElement("afterend", playlistItem);
-    });
-  }
-
-  // Tạo playlist item
-  function createPlaylistItem(playlist) {
-    const item = document.createElement("div");
-    item.className = "library-item playlist-item";
-    item.dataset.playlistId = playlist.id;
-
-    const imageUrl = playlist.image_url || "placeholder.svg?height=48&width=48";
-    const trackCount = playlist.track_count || 0;
-
-    item.innerHTML = `
-      <img src="${imageUrl}" alt="${playlist.name}" class="item-image" />
-      <div class="item-info">
-        <div class="item-title">${playlist.name}</div>
-        <div class="item-subtitle">Playlist • ${trackCount} songs</div>
-      </div>
-    `;
-
-    item.addEventListener("click", () => {
-      showPlaylistDetail(playlist.id);
-    });
-
-    return item;
-  }
-
-  // Hiển thị chi tiết playlist
-  async function showPlaylistDetail(playlistId) {
-    try {
-      console.log("Loading playlist:", playlistId);
-
-      // Ẩn home sections
-      const hitsSection = document.querySelector(".hits-section");
-      const artistsSection = document.querySelector(".artists-section");
-      if (hitsSection) hitsSection.style.display = "none";
-      if (artistsSection) artistsSection.style.display = "none";
-
-      // Ẩn artist profile sections
-      const artistHero = document.querySelector(".artist-hero");
-      const artistControls = document.querySelector(".artist-controls");
-      const popularSection = document.querySelector(".popular-section");
-      if (artistHero) artistHero.style.display = "none";
-      if (artistControls) artistControls.style.display = "none";
-      if (popularSection) popularSection.style.display = "none";
-
-      // Hiển thị back button
-      const backBtn = document.querySelector(".back-btn");
-      if (backBtn) backBtn.style.display = "flex";
-
-      // Fetch playlist
-      const playlist = await httpRequest.get(`playlists/${playlistId}`);
-      console.log("Playlist data:", playlist);
-
-      // Render
-      renderPlaylistDetailPage(playlist);
-
-    } catch (error) {
-      console.error("Error loading playlist:", error);
-      alert("Failed to load playlist");
-      hideArtistProfile();
-    }
-  }
-
-  // Render chi tiết playlist
-  function renderPlaylistDetailPage(playlist) {
-    const contentWrapper = document.querySelector(".content-wrapper");
-    if (!contentWrapper) return;
-
-    const tracks = playlist.tracks || [];
-    const totalDuration = tracks.reduce((sum, t) => sum + (t.duration || 0), 0);
-    const hours = Math.floor(totalDuration / 3600);
-    const minutes = Math.floor((totalDuration % 3600) / 60);
-    const durationText = hours > 0 ? `${hours} hr ${minutes} min` : `${minutes} min`;
-
-    // Xác định image
-    let imageUrl = playlist.image_url;
-    if (!imageUrl && tracks.length > 0) imageUrl = tracks[0].image_url;
-    if (!imageUrl) imageUrl = `https://via.placeholder.com/300/1db954/ffffff?text=${encodeURIComponent(playlist.name.substring(0, 2).toUpperCase())}`;
-
-    // Clear và render mới
-    contentWrapper.innerHTML = "";
-
-    // Hero section
-    const heroSection = document.createElement("section");
-    heroSection.className = "playlist-detail-hero";
-    heroSection.style.cssText = `
-      background: linear-gradient(180deg, rgba(0,0,0,0.6) 0%, #121212 100%);
-      padding: 80px 32px 24px;
-      display: flex;
-      align-items: flex-end;
-      gap: 24px;
-      min-height: 340px;
-    `;
-
-    heroSection.innerHTML = `
-      <div style="width: 232px; height: 232px; box-shadow: 0 4px 60px rgba(0,0,0,.5); flex-shrink: 0; border-radius: 4px; overflow: hidden;">
-        <img src="${imageUrl}" alt="${playlist.name}" style="width: 100%; height: 100%; object-fit: cover;">
-      </div>
-      <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 8px;">
-        <span style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">Playlist</span>
-        <h1 style="font-size: 48px; font-weight: 900; line-height: 1.2; margin: 8px 0; word-break: break-word;">${playlist.name}</h1>
-        ${playlist.description ? `<p style="font-size: 14px; color: rgba(255,255,255,0.7); margin: 8px 0;">${playlist.description}</p>` : ''}
-        <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; margin-top: 8px;">
-          <span>${playlist.owner?.username || 'Unknown'}</span>
-          <span style="font-size: 10px;">•</span>
-          <span>${tracks.length} songs</span>
-          ${totalDuration > 0 ? `<span style="font-size: 10px;">•</span><span style="color: rgba(255,255,255,0.7);">${durationText}</span>` : ''}
-        </div>
-      </div>
-    `;
-    contentWrapper.appendChild(heroSection);
-
-    // Controls
-const controlsSection = document.createElement("section");
-controlsSection.style.cssText = `
-  padding: 24px 32px;
-  display: flex;
-  align-items: center;
-  gap: 32px;
-  background: linear-gradient(rgba(0,0,0,.6) 0, #121212 100%);
-`;
-controlsSection.innerHTML = `
-  <button class="play-btn-large" style="width: 56px; height: 56px; border-radius: 50%; background: #1db954; border: none; 
-    color: #000; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; 
-    transition: transform 0.2s;">
-    <i class="fas fa-play" style="margin-left: 3px;"></i>
-  </button>
-  <button class="delete-playlist-btn" style="background: transparent; border: 1px solid rgba(255,255,255,0.3);
-    color: rgba(255,255,255,0.8); padding: 8px 16px; border-radius: 20px; font-size: 14px;
-    cursor: pointer; transition: all 0.2s;">
-    <i class="fas fa-trash"></i> Delete Playlist
-  </button>
-`;
-contentWrapper.appendChild(controlsSection);
-
-// Nút play animation
-const playBtn = controlsSection.querySelector(".play-btn-large");
-playBtn.addEventListener("mouseenter", () => playBtn.style.transform = "scale(1.06)");
-playBtn.addEventListener("mouseleave", () => playBtn.style.transform = "scale(1)");
-playBtn.addEventListener("click", () => {
-  if (tracks.length > 0 && window.musicPlayer) {
-    window.musicPlayer.playlist = tracks;
-    window.musicPlayer.playlistSource = "playlist";
-    window.musicPlayer.loadAndPlay(0);
-  }
-});
-
-//Nút XÓA PLAYLIST
-const deleteBtn = controlsSection.querySelector(".delete-playlist-btn");
-deleteBtn.addEventListener("mouseenter", () => {
-  deleteBtn.style.background = "rgba(255,0,0,0.2)";
-  deleteBtn.style.color = "#ff4d4d";
-});
-deleteBtn.addEventListener("mouseleave", () => {
-  deleteBtn.style.background = "transparent";
-  deleteBtn.style.color = "rgba(255,255,255,0.8)";
-});
-
-deleteBtn.addEventListener("click", async () => {
-  if (!confirm("Are you sure you want to delete this playlist?")) return;
-
-  try {
-    const accessToken = localStorage.getItem("access_token");
-    await fetch(`https://spotify.f8team.dev/api/playlists/${playlist.id}`, {
-      method: "DELETE",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`
-      }
-    });
-
-    showNotification("Playlist deleted successfully!");
-
-    // Quay về giao diện chính
-    const contentWrapper = document.querySelector(".content-wrapper");
-    if (contentWrapper) contentWrapper.innerHTML = "";
-    const hitsSection = document.querySelector(".hits-section");
-    const artistsSection = document.querySelector(".artists-section");
-    if (hitsSection) hitsSection.style.display = "";
-    if (artistsSection) artistsSection.style.display = "";
-
-    const backBtn = document.querySelector(".back-btn");
-    if (backBtn) backBtn.style.display = "none";
-
-    await fetchAndRenderPlaylists();
-  } catch (err) {
-    console.error("Failed to delete playlist:", err);
-    alert("Failed to delete playlist. Please try again.");
-  }
-});
-
-  }
-
-  // Render tracks
-  function renderPlaylistTracks(tracks, container) {
-    container.innerHTML = "";
-
-    tracks.forEach((track, index) => {
-      const item = document.createElement("div");
-      item.className = "track-item";
-      item.style.cssText = `
-        display: grid;
-        grid-template-columns: 40px 1fr auto 40px;
-        gap: 16px;
-        padding: 8px 16px;
-        border-radius: 4px;
-        align-items: center;
-        transition: background 0.2s;
-        cursor: pointer;
-      `;
-
-      item.innerHTML = `
-        <div style="text-align: center; color: rgba(255,255,255,0.6);">${index + 1}</div>
-        <div style="display: flex; gap: 12px; align-items: center; min-width: 0;">
-          <img src="${track.image_url || 'placeholder.svg?height=40&width=40'}" 
-            style="width: 40px; height: 40px; border-radius: 4px;">
-          <div style="min-width: 0;">
-            <div style="font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-              ${track.title}
-            </div>
-            <div style="font-size: 12px; color: rgba(255,255,255,0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-              ${track.artist_name || 'Unknown'}
-            </div>
-          </div>
-        </div>
-        <div style="color: rgba(255,255,255,0.6); font-size: 14px;">${formatDuration(track.duration)}</div>
-        <button class="track-menu-btn" style="background: none; border: none; color: rgba(255,255,255,0.6); 
-          cursor: pointer; padding: 8px;">
-          <i class="fas fa-ellipsis-h"></i>
-        </button>
-      `;
-
-      item.addEventListener("mouseenter", () => item.style.background = "rgba(255,255,255,0.1)");
-      item.addEventListener("mouseleave", () => item.style.background = "");
-      item.addEventListener("click", () => {
-        if (window.musicPlayer) {
-          window.musicPlayer.playlist = tracks;
-          window.musicPlayer.playlistSource = "playlist";
-          window.musicPlayer.loadAndPlay(index);
-        }
-      });
-
-      container.appendChild(item);
-    });
-  }
-
   function formatDuration(seconds) {
     if (!seconds) return "--:--";
     const min = Math.floor(seconds / 60);
@@ -2596,4 +2346,177 @@ deleteBtn.addEventListener("click", async () => {
   // Load playlists
   await fetchAndRenderPlaylists();
   window.fetchAndRenderPlaylists = fetchAndRenderPlaylists;
+});
+// Thêm vào cuối file main.js
+
+// ==================== SIDEBAR AUTHENTICATION CONTROL ====================
+document.addEventListener("DOMContentLoaded", () => {
+  updateSidebarVisibility();
+});
+
+// Lắng nghe sự kiện thay đổi authentication
+window.addEventListener("storage", (event) => {
+  if (event.key === "access_token" || event.key === "currentuser") {
+    updateSidebarVisibility();
+  }
+});
+
+// Cập nhật sau khi đăng nhập/đăng xuất
+function updateSidebarVisibility() {
+  const accessToken = localStorage.getItem("access_token");
+  const libraryContent = document.querySelector(".library-content");
+  const navTabs = document.querySelector(".nav-tabs");
+  const searchLibrary = document.querySelector(".search-library");
+  const createBtn = document.querySelector(".create-btn");
+  
+  if (!accessToken) {
+    // Chưa đăng nhập - Ẩn các thành phần library
+    if (libraryContent) {
+      libraryContent.style.display = "none";
+    }
+    if (navTabs) {
+      navTabs.style.display = "none";
+    }
+    if (searchLibrary) {
+      searchLibrary.style.display = "none";
+    }
+    if (createBtn) {
+      createBtn.style.display = "none";
+    }
+    
+    // Hiển thị thông báo yêu cầu đăng nhập
+    showLoginPrompt();
+  } else {
+    // Đã đăng nhập - Hiển thị các thành phần library
+    if (libraryContent) {
+      libraryContent.style.display = "block";
+    }
+    if (navTabs) {
+      navTabs.style.display = "flex";
+    }
+    if (searchLibrary) {
+      searchLibrary.style.display = "flex";
+    }
+    if (createBtn) {
+      createBtn.style.display = "flex";
+    }
+    
+    // Xóa thông báo đăng nhập nếu có
+    removeLoginPrompt();
+    
+    // Load playlists
+    if (window.fetchAndRenderPlaylists) {
+      window.fetchAndRenderPlaylists();
+    }
+  }
+}
+
+// Hiển thị thông báo yêu cầu đăng nhập
+function showLoginPrompt() {
+  const sidebarNav = document.querySelector(".sidebar-nav");
+  let loginPrompt = document.querySelector(".login-prompt");
+  
+  if (!loginPrompt && sidebarNav) {
+    loginPrompt = document.createElement("div");
+    loginPrompt.className = "login-prompt";
+    loginPrompt.style.cssText = `
+      padding: 24px 16px;
+      text-align: center;
+      color: rgba(255, 255, 255, 0.7);
+      margin-top: 20px;
+    `;
+    
+    loginPrompt.innerHTML = `
+      <i class="fas fa-lock" style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
+      <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 8px; color: white;">
+        Log in to see your library
+      </h3>
+      <p style="font-size: 14px; margin-bottom: 20px; line-height: 1.5;">
+        Sign in to access your playlists, liked songs, and followed artists
+      </p>
+      <button class="prompt-login-btn" style="
+        background: white;
+        color: black;
+        border: none;
+        padding: 12px 32px;
+        border-radius: 500px;
+        font-weight: 700;
+        font-size: 14px;
+        cursor: pointer;
+        transition: transform 0.2s;
+      ">
+        Log in
+      </button>
+    `;
+    
+    sidebarNav.appendChild(loginPrompt);
+    
+    // Thêm sự kiện click cho nút login
+    const promptLoginBtn = loginPrompt.querySelector(".prompt-login-btn");
+    promptLoginBtn.addEventListener("mouseenter", () => {
+      promptLoginBtn.style.transform = "scale(1.05)";
+    });
+    promptLoginBtn.addEventListener("mouseleave", () => {
+      promptLoginBtn.style.transform = "scale(1)";
+    });
+    promptLoginBtn.addEventListener("click", () => {
+      // Mở modal login
+      const loginBtn = document.querySelector(".login-btn");
+      if (loginBtn) {
+        loginBtn.click();
+      }
+    });
+  }
+}
+
+// Xóa thông báo đăng nhập
+function removeLoginPrompt() {
+  const loginPrompt = document.querySelector(".login-prompt");
+  if (loginPrompt) {
+    loginPrompt.remove();
+  }
+}
+
+// Hook vào hàm login/logout để cập nhật sidebar
+const originalUpdateCurrentUser = window.updateCurrentUser || function() {};
+window.updateCurrentUser = function(user) {
+  originalUpdateCurrentUser(user);
+  updateSidebarVisibility();
+};
+
+// Cập nhật sau khi đăng nhập thành công
+document.addEventListener("DOMContentLoaded", () => {
+  const loginForm = document.querySelector("#loginForm .auth-form-content");
+  const signupForm = document.querySelector("#signupForm .auth-form-content");
+  
+  if (loginForm) {
+    loginForm.addEventListener("submit", async (e) => {
+      // Đợi xử lý login xong
+      setTimeout(() => {
+        updateSidebarVisibility();
+      }, 500);
+    });
+  }
+  
+  if (signupForm) {
+    signupForm.addEventListener("submit", async (e) => {
+      // Đợi xử lý signup xong
+      setTimeout(() => {
+        updateSidebarVisibility();
+      }, 500);
+    });
+  }
+});
+
+// Cập nhật sau khi đăng xuất
+document.addEventListener("DOMContentLoaded", () => {
+  const logoutBtn = document.getElementById("logoutBtn");
+  
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", () => {
+      setTimeout(() => {
+        updateSidebarVisibility();
+      }, 100);
+    });
+  }
 });

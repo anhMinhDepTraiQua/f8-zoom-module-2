@@ -99,6 +99,8 @@
 
 /* Auth buttons */
 .auth-btn {
+    background-color: black;
+    color: white;
     padding: var(--spacing-sm) var(--spacing-lg);
     border-radius: var(--radius-xl);
     font-size: 14px;

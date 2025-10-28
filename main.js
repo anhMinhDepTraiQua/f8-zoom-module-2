@@ -2021,3 +2021,865 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 });
+// ==================== JAVASCRIPT CODE ====================
+// Thêm vào cuối file main.js
+
+// ==================== PLAYLIST MANAGEMENT ====================
+document.addEventListener("DOMContentLoaded", async () => {
+  const createBtn = document.querySelector(".create-btn");
+  const playlistModal = document.getElementById("playlistModal");
+  const playlistModalClose = document.getElementById("playlistModalClose");
+  const playlistForm = document.getElementById("playlistForm");
+  const libraryContent = document.querySelector(".library-content");
+
+  let currentPlaylists = [];
+  let currentEditingPlaylist = null;
+  let selectedTracks = [];
+  let uploadedImageFile = null;
+
+  // Load playlists on page load
+  await loadUserPlaylists();
+
+  // ==================== LOAD USER PLAYLISTS ====================
+  async function loadUserPlaylists() {
+    try {
+      const accessToken = localStorage.getItem("access_token");
+      if (!accessToken) {
+        console.log("No access token, skipping playlist load");
+        return;
+      }
+
+      console.log("Loading user playlists...");
+      const response = await httpRequest.get("me/playlists");
+      console.log("Playlists API response:", response);
+      
+      // Handle different response structures
+      let playlists = response.data?.playlists || 
+                     response.data?.data || 
+                     response.playlists || 
+                     response.data || 
+                     [];
+
+      if (!Array.isArray(playlists)) {
+        console.error("Playlists is not an array:", playlists);
+        playlists = [];
+      }
+
+      // Fetch track count for each playlist
+      currentPlaylists = await Promise.all(
+        playlists.map(async (playlist) => {
+          try {
+            // Get track count
+            const tracksResponse = await httpRequest.get(`playlists/${playlist.id}/tracks`);
+            const tracks = tracksResponse.data?.tracks || tracksResponse.tracks || [];
+            
+            return {
+              ...playlist,
+              track_count: tracks.length
+            };
+          } catch (error) {
+            console.error(`Error fetching tracks for playlist ${playlist.id}:`, error);
+            return {
+              ...playlist,
+              track_count: 0
+            };
+          }
+        })
+      );
+
+      console.log("Playlists with track counts:", currentPlaylists);
+      renderPlaylists();
+    } catch (error) {
+      console.error("Error loading playlists:", error);
+      console.error("Error response:", error.response);
+    }
+  }
+
+  // ==================== RENDER PLAYLISTS IN SIDEBAR ====================
+  function renderPlaylists() {
+    // Clear existing playlists (keep Liked Songs)
+    const existingPlaylists = libraryContent.querySelectorAll(
+      ".library-item:not(:first-child)"
+    );
+    existingPlaylists.forEach((item) => item.remove());
+
+    // Render each playlist
+    currentPlaylists.forEach((playlist) => {
+      const playlistItem = createPlaylistItem(playlist);
+      libraryContent.appendChild(playlistItem);
+    });
+  }
+
+  // ==================== CREATE PLAYLIST ITEM ====================
+  function createPlaylistItem(playlist) {
+    const item = document.createElement("div");
+    item.className = "library-item";
+    item.dataset.playlistId = playlist.id;
+
+    // Get image URL with fallback
+    const imageUrl = playlist.image_url || 
+                    playlist.cover_url || 
+                    playlist.imageUrl ||
+                    "https://misc.scdn.co/liked-songs/liked-songs-300.png";
+
+    // Get track count - will be updated after fetching tracks
+    const trackCount = playlist.track_count || 
+                      playlist.trackCount || 
+                      0;
+
+    item.innerHTML = `
+      <img 
+        src="${imageUrl}"
+        alt="${playlist.name}"
+        class="item-image"
+        onerror="this.src='https://misc.scdn.co/liked-songs/liked-songs-300.png'"
+      />
+      <div class="item-info">
+        <div class="item-title">${playlist.name}</div>
+        <div class="item-subtitle">
+          Playlist • <span class="track-count">${trackCount}</span> song${trackCount !== 1 ? 's' : ''}
+        </div>
+      </div>
+      <button class="playlist-menu-btn">
+        <i class="fas fa-ellipsis-h"></i>
+      </button>
+    `;
+
+    // Click to view playlist
+    item.addEventListener("click", async (e) => {
+      if (!e.target.closest(".playlist-menu-btn")) {
+        // Remove active class from all playlists
+        document.querySelectorAll(".library-item").forEach(i => i.classList.remove("active"));
+        // Add active class to clicked item
+        item.classList.add("active");
+        
+        await viewPlaylist(playlist);
+      }
+    });
+
+    // Right-click menu for edit/delete
+    const menuBtn = item.querySelector(".playlist-menu-btn");
+    menuBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      showPlaylistContextMenu(e, playlist);
+    });
+
+    return item;
+  }
+
+  // ==================== VIEW PLAYLIST ====================
+  async function viewPlaylist(playlist) {
+    try {
+      console.log("Loading playlist:", playlist.id);
+      
+      // Fetch playlist details first
+      const playlistResponse = await httpRequest.get(`playlists/${playlist.id}`);
+      const playlistData = playlistResponse.data?.playlist || playlistResponse.playlist || playlistResponse.data || playlistResponse;
+      
+      console.log("Playlist response:", playlistResponse);
+      
+      // Fetch playlist tracks (only IDs)
+      const tracksResponse = await httpRequest.get(`playlists/${playlist.id}/tracks`);
+      const playlistTracks = tracksResponse.data?.tracks || tracksResponse.tracks || tracksResponse.data || [];
+      
+      console.log("Playlist tracks response:", tracksResponse);
+      console.log("Playlist tracks (IDs only):", playlistTracks);
+      
+      // Fetch full track details for each track_id
+      const tracks = [];
+      for (const item of playlistTracks) {
+        try {
+          const trackId = item.track_id || item.id;
+          if (!trackId) continue;
+          
+          const trackResponse = await httpRequest.get(`tracks/${trackId}`);
+          const trackData = trackResponse.data?.track || trackResponse.track || trackResponse.data || trackResponse;
+          
+          // Normalize track structure
+          tracks.push({
+            id: trackData.id,
+            title: trackData.title || trackData.name || "Unknown Track",
+            artist_name: trackData.artist_name || trackData.artist?.name || "Unknown Artist",
+            duration: parseInt(trackData.duration) || 0,
+            image_url: trackData.image_url || trackData.cover_url || "placeholder.svg?height=40&width=40",
+            audio_url: trackData.audio_url || trackData.file_url || "",
+            artist_id: trackData.artist_id || trackData.artist?.id
+          });
+        } catch (trackError) {
+          console.error("Error fetching track details:", trackError);
+          // Continue with other tracks
+        }
+      }
+      
+      console.log("Full tracks with details:", tracks);
+
+      // Update track count in sidebar
+      const sidebarItem = document.querySelector(`.library-item[data-playlist-id="${playlist.id}"]`);
+      if (sidebarItem) {
+        const trackCountSpan = sidebarItem.querySelector(".track-count");
+        if (trackCountSpan) {
+          trackCountSpan.textContent = tracks.length;
+        }
+        // Update the whole subtitle to fix singular/plural
+        const subtitle = sidebarItem.querySelector(".item-subtitle");
+        if (subtitle) {
+          subtitle.innerHTML = `Playlist • <span class="track-count">${tracks.length}</span> song${tracks.length !== 1 ? 's' : ''}`;
+        }
+      }
+
+      // Set playlist for music player
+      if (window.musicPlayer) {
+        window.musicPlayer.playlist = tracks;
+        window.musicPlayer.playlistSource = "playlist";
+      }
+
+      // Determine the best image URL
+      let imageUrl = playlistData.image_url || 
+                    playlistData.cover_url || 
+                    playlistData.imageUrl ||
+                    playlistData.coverUrl ||
+                    playlistData.image ||
+                    playlistData.cover;
+      
+      if (!imageUrl || imageUrl === 'placeholder.svg' || imageUrl.includes('placeholder')) {
+        imageUrl = "https://misc.scdn.co/liked-songs/liked-songs-640.png";
+      }
+      
+      console.log("Final image URL:", imageUrl);
+
+      // Render playlist view
+      const contentWrapper = document.querySelector(".content-wrapper");
+      contentWrapper.innerHTML = `
+        <section class="playlist-view-section">
+          <div class="playlist-hero">
+            <div class="hero-cover">
+              <img src="${imageUrl}" alt="${playlistData.name || 'Playlist'}" 
+                   onerror="this.src='https://misc.scdn.co/liked-songs/liked-songs-640.png'">
+            </div>
+            <div class="hero-info">
+              <span class="hero-type">Playlist</span>
+              <h1 class="hero-title">${playlistData.name || 'Unnamed Playlist'}</h1>
+              ${playlistData.description ? `<p class="hero-description">${playlistData.description}</p>` : ''}
+              <p class="hero-subtitle">${tracks.length} song${tracks.length !== 1 ? 's' : ''}</p>
+              <div class="playlist-actions">
+                ${tracks.length > 0 ? '<button class="hero-play-btn"><i class="fas fa-play"></i></button>' : ''}
+                <button class="edit-playlist-btn"><i class="fas fa-edit"></i> Edit</button>
+                <button class="delete-playlist-btn"><i class="fas fa-trash"></i> Delete</button>
+              </div>
+            </div>
+          </div>
+          <div class="track-list playlist-track-list"></div>
+        </section>
+      `;
+
+      // Render tracks
+      const trackList = contentWrapper.querySelector(".playlist-track-list");
+      if (tracks.length === 0) {
+        trackList.innerHTML = '<div class="empty">No tracks in this playlist yet. Click Edit to add tracks.</div>';
+      } else {
+        tracks.forEach((track, index) => {
+          const trackItem = createPlaylistTrackItem(track, index, playlistData.id);
+          trackList.appendChild(trackItem);
+        });
+      }
+
+      // Setup action buttons
+      const playBtn = contentWrapper.querySelector(".hero-play-btn");
+      if (playBtn) {
+        playBtn.addEventListener("click", () => {
+          if (window.musicPlayer && tracks.length > 0) {
+            window.musicPlayer.playlist = tracks;
+            window.musicPlayer.playlistSource = "playlist";
+            window.musicPlayer.currentTrackIndex = 0;
+            window.musicPlayer.loadAndPlay(0);
+          }
+        });
+      }
+
+      const editBtn = contentWrapper.querySelector(".edit-playlist-btn");
+      editBtn.addEventListener("click", () => {
+        openPlaylistModal(playlistData);
+      });
+
+      const deleteBtn = contentWrapper.querySelector(".delete-playlist-btn");
+      deleteBtn.addEventListener("click", () => {
+        deletePlaylist(playlistData.id);
+      });
+    } catch (error) {
+      console.error("Error viewing playlist:", error);
+      console.error("Error details:", error.response);
+      alert("Failed to load playlist");
+    }
+  }
+
+  // ==================== CREATE PLAYLIST TRACK ITEM ====================
+  function createPlaylistTrackItem(track, index, playlistId) {
+    const item = document.createElement("div");
+    item.className = "track-item";
+    item.dataset.trackId = track.id || track.track_id;
+
+    // Parse track data - handle nested structure
+    const trackData = track.track || track;
+    const trackId = trackData.id || track.id;
+    const trackTitle = trackData.title || trackData.name || "Unknown Track";
+    const trackArtist = trackData.artist_name || trackData.artist?.name || "Unknown Artist";
+    const trackDuration = trackData.duration || 0;
+    const trackImage = trackData.image_url || trackData.album?.image_url || "placeholder.svg?height=40&width=40";
+
+    console.log("Rendering track:", { trackData, trackTitle, trackArtist, trackDuration, trackImage });
+
+    item.innerHTML = `
+      <div class="track-number">${index + 1}</div>
+      <div class="track-image">
+        <img src="${trackImage}" alt="${trackTitle}"
+             onerror="this.src='placeholder.svg?height=40&width=40'">
+      </div>
+      <div class="track-info">
+        <div class="track-name">${trackTitle}</div>
+        <div class="track-artist">${trackArtist}</div>
+      </div>
+      <div class="track-duration">${formatDuration(trackDuration)}</div>
+      <button class="remove-track-btn" title="Remove from playlist">
+        <i class="fas fa-times"></i>
+      </button>
+    `;
+
+    // Play track
+    item.addEventListener("click", (e) => {
+      if (!e.target.closest(".remove-track-btn")) {
+        if (window.musicPlayer) {
+          window.musicPlayer.loadAndPlay(index);
+        }
+      }
+    });
+
+    // Remove track from playlist
+    const removeBtn = item.querySelector(".remove-track-btn");
+    removeBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await removeTrackFromPlaylist(playlistId, trackId);
+    });
+
+    return item;
+  }
+
+  // ==================== REMOVE TRACK FROM PLAYLIST ====================
+  async function removeTrackFromPlaylist(playlistId, trackId) {
+    if (!confirm("Remove this track from playlist?")) return;
+
+    try {
+      // Use correct API endpoint
+      await httpRequest.delete(`playlists/${playlistId}/tracks/${trackId}`);
+      
+      console.log(`Track ${trackId} removed from playlist ${playlistId}`);
+      showNotification("Track removed from playlist");
+      
+      // Reload playlist view
+      const response = await httpRequest.get(`playlists/${playlistId}`);
+      const playlist = response.data?.playlist || response.playlist || response.data || response;
+      if (playlist) {
+        await viewPlaylist(playlist);
+      }
+    } catch (error) {
+      console.error("Error removing track:", error);
+      alert("Failed to remove track");
+    }
+  }
+
+  // ==================== PLAYLIST CONTEXT MENU ====================
+  function showPlaylistContextMenu(event, playlist) {
+    const existingMenu = document.querySelector(".playlist-context-menu");
+    if (existingMenu) existingMenu.remove();
+
+    const menu = document.createElement("div");
+    menu.className = "playlist-context-menu";
+    menu.innerHTML = `
+      <button class="context-menu-item edit-playlist">
+        <i class="fas fa-edit"></i> Edit
+      </button>
+      <button class="context-menu-item delete-playlist">
+        <i class="fas fa-trash"></i> Delete
+      </button>
+    `;
+
+    menu.style.position = "fixed";
+    menu.style.left = `${event.clientX}px`;
+    menu.style.top = `${event.clientY}px`;
+    menu.style.zIndex = "10000";
+
+    document.body.appendChild(menu);
+
+    // Edit playlist
+    menu.querySelector(".edit-playlist").addEventListener("click", () => {
+      openPlaylistModal(playlist);
+      menu.remove();
+    });
+
+    // Delete playlist
+    menu.querySelector(".delete-playlist").addEventListener("click", () => {
+      deletePlaylist(playlist.id);
+      menu.remove();
+    });
+
+    // Close menu when clicking outside
+    setTimeout(() => {
+      document.addEventListener(
+        "click",
+        () => {
+          menu.remove();
+        },
+        { once: true }
+      );
+    }, 0);
+  }
+
+  // ==================== OPEN CREATE/EDIT MODAL ====================
+  function openPlaylistModal(playlist = null) {
+    currentEditingPlaylist = playlist;
+    selectedTracks = [];
+    uploadedImageFile = null;
+
+    // Update modal title
+    const modalHeading = playlistModal.querySelector(".modal-heading");
+    modalHeading.textContent = playlist ? "Edit Playlist" : "Create New Playlist";
+
+    // Fill form if editing
+    document.getElementById("playlistName").value = playlist?.name || "";
+    document.getElementById("playlistDescription").value = playlist?.description || "";
+
+    // Show modal
+    playlistModal.classList.add("show");
+    document.body.style.overflow = "hidden";
+
+    // Setup track search if not already done
+    if (!playlistModal.querySelector(".track-search-container")) {
+      setupTrackSearch();
+    }
+  }
+
+  // ==================== SETUP TRACK SEARCH IN MODAL ====================
+  function setupTrackSearch() {
+    const form = document.getElementById("playlistForm");
+    const searchContainer = document.createElement("div");
+    searchContainer.className = "track-search-container";
+    searchContainer.innerHTML = `
+      <h3>Add Tracks</h3>
+      <div class="search-input-wrapper">
+        <i class="fas fa-search search-icon"></i>
+        <input type="text" class="search-input" placeholder="Search for tracks..." id="modalTrackSearch">
+      </div>
+      <div class="track-search-results"></div>
+      <div class="selected-tracks">
+        <h4>Selected Tracks (<span class="selected-count">0</span>)</h4>
+        <div class="selected-tracks-list"></div>
+      </div>
+    `;
+
+    form.insertBefore(searchContainer, form.querySelector("button[type='submit']"));
+
+    const searchInput = searchContainer.querySelector("#modalTrackSearch");
+    const searchResults = searchContainer.querySelector(".track-search-results");
+    let searchTimeout;
+
+    searchInput.addEventListener("input", (e) => {
+      clearTimeout(searchTimeout);
+      const query = e.target.value.trim();
+
+      if (query.length === 0) {
+        searchResults.innerHTML = "";
+        return;
+      }
+
+      searchTimeout = setTimeout(async () => {
+        await searchTracksForPlaylist(query, searchResults);
+      }, 300);
+    });
+  }
+
+  // ==================== SEARCH TRACKS FOR PLAYLIST ====================
+  async function searchTracksForPlaylist(query, resultsContainer) {
+    try {
+      resultsContainer.innerHTML = '<div class="loading">Searching...</div>';
+
+      const response = await httpRequest.get(
+        `tracks?limit=10&offset=0&search=${encodeURIComponent(query)}`
+      );
+      const tracks = response.tracks || [];
+
+      if (tracks.length === 0) {
+        resultsContainer.innerHTML = '<div class="empty">No tracks found</div>';
+        return;
+      }
+
+      resultsContainer.innerHTML = "";
+      tracks.forEach((track) => {
+        const trackItem = document.createElement("div");
+        trackItem.className = "search-track-result";
+        trackItem.innerHTML = `
+          <img src="${track.image_url || "placeholder.svg?height=40&width=40"}" alt="${track.title}">
+          <div class="track-info">
+            <div class="track-name">${track.title}</div>
+            <div class="track-artist">${track.artist_name || "Unknown"}</div>
+          </div>
+          <button class="add-track-btn">
+            <i class="fas fa-plus"></i>
+          </button>
+        `;
+
+        const addBtn = trackItem.querySelector(".add-track-btn");
+        const isAlreadySelected = selectedTracks.some((t) => t.id === track.id);
+        
+        if (isAlreadySelected) {
+          addBtn.innerHTML = '<i class="fas fa-check"></i>';
+          addBtn.disabled = true;
+        }
+
+        addBtn.addEventListener("click", () => {
+          addTrackToSelection(track);
+          addBtn.innerHTML = '<i class="fas fa-check"></i>';
+          addBtn.disabled = true;
+        });
+
+        resultsContainer.appendChild(trackItem);
+      });
+    } catch (error) {
+      console.error("Error searching tracks:", error);
+      resultsContainer.innerHTML = '<div class="error">Search failed</div>';
+    }
+  }
+
+  // ==================== ADD TRACK TO SELECTION ====================
+  function addTrackToSelection(track) {
+    if (selectedTracks.some((t) => t.id === track.id)) return;
+
+    selectedTracks.push(track);
+    renderSelectedTracks();
+  }
+
+  // ==================== RENDER SELECTED TRACKS ====================
+  function renderSelectedTracks() {
+    const selectedList = playlistModal.querySelector(".selected-tracks-list");
+    const selectedCount = playlistModal.querySelector(".selected-count");
+
+    selectedCount.textContent = selectedTracks.length;
+    selectedList.innerHTML = "";
+
+    selectedTracks.forEach((track) => {
+      const trackItem = document.createElement("div");
+      trackItem.className = "selected-track-item";
+      trackItem.innerHTML = `
+        <img src="${track.image_url || "placeholder.svg?height=32&width=32"}" alt="${track.title}">
+        <span>${track.title}</span>
+        <button class="remove-selected-btn">
+          <i class="fas fa-times"></i>
+        </button>
+      `;
+
+      trackItem.querySelector(".remove-selected-btn").addEventListener("click", () => {
+        selectedTracks = selectedTracks.filter((t) => t.id !== track.id);
+        renderSelectedTracks();
+      });
+
+      selectedList.appendChild(trackItem);
+    });
+  }
+
+  // ==================== HANDLE IMAGE UPLOAD ====================
+  const imageInput = document.getElementById("playlistImage");
+  imageInput.addEventListener("change", (e) => {
+    uploadedImageFile = e.target.files[0];
+  });
+
+  // ==================== CLOSE MODAL ====================
+  function closePlaylistModal() {
+    playlistModal.classList.remove("show");
+    document.body.style.overflow = "auto";
+    playlistForm.reset();
+    
+    // Clear selected tracks
+    selectedTracks = [];
+    const selectedList = playlistModal.querySelector(".selected-tracks-list");
+    const selectedCount = playlistModal.querySelector(".selected-count");
+    if (selectedList) selectedList.innerHTML = "";
+    if (selectedCount) selectedCount.textContent = "0";
+    
+    // Clear search results
+    const searchResults = playlistModal.querySelector(".track-search-results");
+    if (searchResults) searchResults.innerHTML = "";
+    
+    // Reset search input
+    const searchInput = playlistModal.querySelector("#modalTrackSearch");
+    if (searchInput) searchInput.value = "";
+    
+    currentEditingPlaylist = null;
+    uploadedImageFile = null;
+  }
+
+  function closeModal() {
+    closePlaylistModal();
+  }
+
+  playlistModalClose.addEventListener("click", closePlaylistModal);
+
+  playlistModal.addEventListener("click", (e) => {
+    if (e.target === playlistModal) {
+      closePlaylistModal();
+    }
+  });
+
+  // ==================== CREATE BTN ====================
+  createBtn.addEventListener("click", () => {
+    openPlaylistModal();
+  });
+
+  // ==================== FORM SUBMIT ====================
+  playlistForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const name = document.getElementById("playlistName").value.trim();
+    const description = document.getElementById("playlistDescription").value.trim();
+
+    if (!name) {
+      alert("Please enter a playlist name");
+      return;
+    }
+
+    try {
+      let imageUrl = null;
+
+      // Upload image if provided
+      if (uploadedImageFile) {
+        const formData = new FormData();
+        formData.append("file", uploadedImageFile);
+
+        const uploadResponse = await fetch("https://spotify.f8team.dev/api/upload", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+          },
+          body: formData,
+        });
+
+        if (uploadResponse.ok) {
+          const uploadData = await uploadResponse.json();
+          imageUrl = uploadData.url || uploadData.data?.url;
+        }
+      }
+
+      // Prepare playlist data - START WITH MINIMAL DATA
+      const playlistData = {
+        name: name,
+      };
+
+      // Only add optional fields if they exist
+      if (description && description.length > 0) {
+        playlistData.description = description;
+      }
+
+      if (imageUrl) {
+        playlistData.image_url = imageUrl;
+      }
+
+      console.log("Sending playlist data:", JSON.stringify(playlistData, null, 2));
+
+      if (currentEditingPlaylist) {
+        // Update existing playlist
+        console.log("Updating playlist:", currentEditingPlaylist.id);
+        const updateResponse = await httpRequest.put(`playlists/${currentEditingPlaylist.id}`, playlistData);
+        console.log("Update response:", updateResponse);
+        
+        // Get existing tracks first to avoid duplicates
+        let existingTrackIds = [];
+        try {
+          const existingTracksResponse = await httpRequest.get(`playlists/${currentEditingPlaylist.id}/tracks`);
+          const existingTracks = existingTracksResponse.data?.tracks || existingTracksResponse.tracks || [];
+          existingTrackIds = existingTracks.map(t => t.id);
+          console.log("Existing track IDs:", existingTrackIds);
+        } catch (e) {
+          console.log("Could not get existing tracks:", e);
+        }
+        
+        // Add only new tracks
+        if (selectedTracks.length > 0) {
+          console.log("Adding new tracks to playlist");
+          
+          let addedCount = 0;
+          let skippedCount = 0;
+          
+          for (let i = 0; i < selectedTracks.length; i++) {
+            const track = selectedTracks[i];
+            
+            // Skip if track already exists
+            if (existingTrackIds.includes(track.id)) {
+              console.log(`Track ${track.id} already in playlist, skipping`);
+              skippedCount++;
+              continue;
+            }
+            
+            try {
+              await httpRequest.post(`playlists/${currentEditingPlaylist.id}/tracks`, {
+                track_id: track.id,
+                position: existingTrackIds.length + addedCount
+              });
+              console.log(`Added track ${track.id}`);
+              addedCount++;
+            } catch (trackError) {
+              console.error(`Could not add track ${track.id}:`, trackError);
+              if (trackError.status !== 409) { // Ignore conflict errors
+                throw trackError;
+              }
+            }
+          }
+          
+          console.log(`Added ${addedCount} tracks, skipped ${skippedCount} duplicates`);
+          
+          if (addedCount > 0) {
+            showNotification(`Added ${addedCount} track${addedCount > 1 ? 's' : ''}`);
+          } else if (skippedCount > 0) {
+            showNotification("All tracks already in playlist");
+          }
+        } else {
+          showNotification("Playlist updated successfully");
+        }
+        
+        closeModal();
+        
+        // Reload the playlist view
+        setTimeout(async () => {
+          try {
+            await loadUserPlaylists();
+            const response = await httpRequest.get(`playlists/${currentEditingPlaylist.id}`);
+            const updatedPlaylist = response.data?.playlist || response.playlist || response.data || response;
+            if (updatedPlaylist && updatedPlaylist.id) {
+              await viewPlaylist(updatedPlaylist);
+            }
+          } catch (e) {
+            console.error("Could not reload playlist:", e);
+          }
+        }, 1000);
+        
+      } else {
+        // Create new playlist
+        console.log("Creating new playlist with data:", playlistData);
+        const response = await httpRequest.post("playlists", playlistData);
+        console.log("Create playlist response:", response);
+        
+        const newPlaylist = response.data?.playlist || response.playlist || response.data || response;
+        console.log("New playlist created:", newPlaylist);
+
+        // Add tracks to new playlist
+        if (selectedTracks.length > 0 && newPlaylist.id) {
+          console.log("Adding tracks to new playlist:", selectedTracks);
+          
+          let addedCount = 0;
+          
+          for (let i = 0; i < selectedTracks.length; i++) {
+            const track = selectedTracks[i];
+            try {
+              await httpRequest.post(`playlists/${newPlaylist.id}/tracks`, {
+                track_id: track.id,
+                position: i
+              });
+              console.log(`Added track ${track.id} at position ${i}`);
+              addedCount++;
+            } catch (trackError) {
+              console.error(`Could not add track ${track.id}:`, trackError);
+              // Continue adding other tracks
+            }
+          }
+          
+          console.log(`Successfully added ${addedCount}/${selectedTracks.length} tracks`);
+          
+          if (addedCount === 0) {
+            alert("Playlist created but could not add any tracks");
+          } else if (addedCount < selectedTracks.length) {
+            alert(`Playlist created with ${addedCount} out of ${selectedTracks.length} tracks`);
+          }
+        }
+
+        showNotification("Playlist created successfully");
+        closeModal();
+        
+        // Wait for backend to process, then reload
+        setTimeout(async () => {
+          await loadUserPlaylists();
+          
+          // Fetch and display the new playlist
+          try {
+            const freshResponse = await httpRequest.get(`playlists/${newPlaylist.id}`);
+            const freshPlaylist = freshResponse.data?.playlist || freshResponse.playlist || freshResponse.data || freshResponse;
+            if (freshPlaylist && freshPlaylist.id) {
+              await viewPlaylist(freshPlaylist);
+            }
+          } catch (viewError) {
+            console.error("Could not load new playlist view:", viewError);
+          }
+        }, 1000);
+      }
+
+      closePlaylistModal();
+      await loadUserPlaylists();
+    } catch (error) {
+      console.error("Error saving playlist:", error);
+      console.error("Error details:", error.response);
+      
+      let errorMessage = "Failed to save playlist";
+      if (error.response?.error?.message) {
+        errorMessage = error.response.error.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      alert(errorMessage);
+    }
+  });
+
+  // ==================== DELETE PLAYLIST ====================
+  async function deletePlaylist(playlistId) {
+    if (!confirm("Are you sure you want to delete this playlist?")) return;
+
+    try {
+      await httpRequest.delete(`playlists/${playlistId}`);
+      showNotification("Playlist deleted");
+      await loadUserPlaylists();
+      showHomePage();
+    } catch (error) {
+      console.error("Error deleting playlist:", error);
+      alert("Failed to delete playlist");
+    }
+  }
+
+  // ==================== HELPER FUNCTIONS ====================
+  function formatDuration(seconds) {
+    const min = Math.floor(seconds / 60);
+    const sec = Math.floor(seconds % 60)
+      .toString()
+      .padStart(2, "0");
+    return `${min}:${sec}`;
+  }
+
+  function showNotification(message) {
+    const notification = document.createElement("div");
+    notification.className = "notification";
+    notification.textContent = message;
+    notification.style.cssText = `
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1db954;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 4px;
+      z-index: 10000;
+      animation: slideUp 0.3s ease;
+    `;
+
+    document.body.appendChild(notification);
+
+    setTimeout(() => {
+      notification.style.animation = "slideDown 0.3s ease";
+      setTimeout(() => notification.remove(), 300);
+    }, 2000);
+  }
+});

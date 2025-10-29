@@ -1852,9 +1852,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ==================== KHỞI TẠO LẦN ĐẦU ====================
   updateLikedSongsUI();
 });
-
-// Thêm vào cuối file main.js
-
 // ==================== SIDEBAR AUTHENTICATION CONTROL ====================
 document.addEventListener("DOMContentLoaded", () => {
   updateSidebarVisibility();
@@ -2113,16 +2110,28 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // ==================== RENDER PLAYLISTS IN SIDEBAR ====================
   function renderPlaylists() {
-    // Clear existing playlists (keep Liked Songs)
-    const existingPlaylists = libraryContent.querySelectorAll(
-      ".library-item:not(:first-child)"
-    );
-    existingPlaylists.forEach((item) => item.remove());
+    // Get the playlists container
+    const playlistsContainer = document.querySelector(".library-playlists");
+    if (!playlistsContainer) return;
 
-    // Render each playlist
+    // Clear ALL existing items except the first Liked Songs with pin icon
+    const allItems = playlistsContainer.querySelectorAll(".library-item");
+    allItems.forEach((item, index) => {
+      // Keep only the first item (Liked Songs with pin)
+      if (index > 0) {
+        item.remove();
+      }
+    });
+
+    // Render each playlist (but skip if it's named "Liked Songs")
     currentPlaylists.forEach((playlist) => {
+      // Skip any playlist named "Liked Songs" from API
+      if (playlist.name === "Liked Songs" || playlist.name === "Liked songs") {
+        return;
+      }
+      
       const playlistItem = createPlaylistItem(playlist);
-      libraryContent.appendChild(playlistItem);
+      playlistsContainer.appendChild(playlistItem);
     });
   }
 
@@ -2462,6 +2471,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Fill form if editing
     document.getElementById("playlistName").value = playlist?.name || "";
     document.getElementById("playlistDescription").value = playlist?.description || "";
+    
+    // Add or update image URL input
+    let imageUrlInput = document.getElementById("playlistImageUrl");
+    if (!imageUrlInput) {
+      const imageGroup = document.querySelector("#playlistImage").closest(".form-group");
+      const urlInput = document.createElement("input");
+      urlInput.type = "text";
+      urlInput.id = "playlistImageUrl";
+      urlInput.className = "form-input";
+      urlInput.placeholder = "Or paste image URL here";
+      urlInput.style.marginTop = "8px";
+      imageGroup.appendChild(urlInput);
+    } else {
+      imageUrlInput.value = playlist?.image_url || "";
+    }
 
     // Show modal
     playlistModal.classList.add("show");
@@ -2661,39 +2685,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     try {
-      let imageUrl = null;
-
-      // Upload image if provided
-      if (uploadedImageFile) {
-        const formData = new FormData();
-        formData.append("file", uploadedImageFile);
-
-        const uploadResponse = await fetch("https://spotify.f8team.dev/api/upload", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-          },
-          body: formData,
-        });
-
-        if (uploadResponse.ok) {
-          const uploadData = await uploadResponse.json();
-          imageUrl = uploadData.url || uploadData.data?.url;
-        }
-      }
-
-      // Prepare playlist data - START WITH MINIMAL DATA
       const playlistData = {
         name: name,
       };
 
-      // Only add optional fields if they exist
+      // Only add description if it's not empty
       if (description && description.length > 0) {
         playlistData.description = description;
       }
 
-      if (imageUrl) {
-        playlistData.image_url = imageUrl;
+      // If user provided direct URL (not uploading file), include it
+      const imageUrlInput = document.getElementById("playlistImageUrl");
+      const directImageUrl = imageUrlInput?.value.trim();
+      if (directImageUrl) {
+        playlistData.image_url = directImageUrl;
+        console.log("Using direct image URL in playlist data:", directImageUrl);
       }
 
       console.log("Sending playlist data:", JSON.stringify(playlistData, null, 2));
@@ -2704,12 +2710,66 @@ document.addEventListener("DOMContentLoaded", async () => {
         const updateResponse = await httpRequest.put(`playlists/${currentEditingPlaylist.id}`, playlistData);
         console.log("Update response:", updateResponse);
         
+        // Upload cover image if provided
+        if (uploadedImageFile) {
+          console.log("Uploading new cover for playlist:", currentEditingPlaylist.id);
+          try {
+            const formData = new FormData();
+            formData.append("images", uploadedImageFile); // Field name is "images"
+
+            const uploadResponse = await fetch(
+              `https://spotify.f8team.dev/api/upload/images`,
+              {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+                },
+                body: formData,
+              }
+            );
+
+            if (uploadResponse.ok) {
+              const uploadData = await uploadResponse.json();
+              console.log("Image upload response:", uploadData);
+              
+              // Extract URL from response
+              const uploadedUrl = uploadData.url || 
+                                 uploadData.data?.url || 
+                                 uploadData.urls?.[0] ||
+                                 uploadData.data?.urls?.[0] ||
+                                 uploadData.files?.[0]?.url;
+              
+              console.log("Extracted image URL:", uploadedUrl);
+              
+              if (uploadedUrl) {
+                // Update playlist with the uploaded image URL
+                try {
+                  await httpRequest.put(`playlists/${currentEditingPlaylist.id}`, {
+                    image_url: uploadedUrl
+                  });
+                  console.log("Updated playlist with new cover");
+                  showNotification("Playlist updated with new cover");
+                } catch (updateError) {
+                  console.error("Could not update playlist with image:", updateError);
+                }
+              } else {
+                console.warn("No URL in upload response:", uploadData);
+              }
+            } else {
+              const errorText = await uploadResponse.text();
+              console.error("Cover upload failed:", uploadResponse.status, errorText);
+            }
+          } catch (uploadError) {
+            console.error("Cover upload error:", uploadError);
+          }
+        }
+        
         // Get existing tracks first to avoid duplicates
         let existingTrackIds = [];
         try {
           const existingTracksResponse = await httpRequest.get(`playlists/${currentEditingPlaylist.id}/tracks`);
           const existingTracks = existingTracksResponse.data?.tracks || existingTracksResponse.tracks || [];
-          existingTrackIds = existingTracks.map(t => t.id);
+          existingTrackIds = existingTracks.map(t => t.track_id || t.id);
           console.log("Existing track IDs:", existingTrackIds);
         } catch (e) {
           console.log("Could not get existing tracks:", e);
@@ -2741,7 +2801,7 @@ document.addEventListener("DOMContentLoaded", async () => {
               addedCount++;
             } catch (trackError) {
               console.error(`Could not add track ${track.id}:`, trackError);
-              if (trackError.status !== 409) { // Ignore conflict errors
+              if (trackError.status !== 409) {
                 throw trackError;
               }
             }
@@ -2754,7 +2814,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           } else if (skippedCount > 0) {
             showNotification("All tracks already in playlist");
           }
-        } else {
+        } else if (!uploadedImageFile) {
           showNotification("Playlist updated successfully");
         }
         
@@ -2783,6 +2843,64 @@ document.addEventListener("DOMContentLoaded", async () => {
         const newPlaylist = response.data?.playlist || response.playlist || response.data || response;
         console.log("New playlist created:", newPlaylist);
 
+        // Upload cover image after creating playlist
+        if (uploadedImageFile && newPlaylist.id) {
+          console.log("Uploading cover for new playlist:", newPlaylist.id);
+          try {
+            const formData = new FormData();
+            formData.append("images", uploadedImageFile); // Field name is "images"
+
+            const uploadResponse = await fetch(
+              `https://spotify.f8team.dev/api/upload/images`,
+              {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+                },
+                body: formData,
+              }
+            );
+
+            if (uploadResponse.ok) {
+              const uploadData = await uploadResponse.json();
+              console.log("Image upload response:", uploadData);
+              
+              // Extract URL from response
+              const uploadedUrl = uploadData.url || 
+                                 uploadData.data?.url || 
+                                 uploadData.urls?.[0] ||
+                                 uploadData.data?.urls?.[0] ||
+                                 uploadData.files?.[0]?.url;
+              
+              console.log("Extracted image URL:", uploadedUrl);
+              
+              if (uploadedUrl) {
+                // Update playlist with the uploaded image URL
+                try {
+                  await httpRequest.put(`playlists/${newPlaylist.id}`, {
+                    image_url: uploadedUrl
+                  });
+                  console.log("Updated playlist with image URL");
+                  showNotification("Playlist created with cover image");
+                } catch (updateError) {
+                  console.error("Could not update playlist with image:", updateError);
+                  showNotification("Image uploaded but could not update playlist");
+                }
+              } else {
+                console.warn("No URL in upload response:", uploadData);
+                showNotification("Image upload completed but URL not found");
+              }
+            } else {
+              const errorText = await uploadResponse.text();
+              console.error("Cover upload failed:", uploadResponse.status, errorText);
+              showNotification("Playlist created but cover upload failed");
+            }
+          } catch (uploadError) {
+            console.error("Cover upload error:", uploadError);
+            showNotification("Playlist created but cover upload failed");
+          }
+        }
+
         // Add tracks to new playlist
         if (selectedTracks.length > 0 && newPlaylist.id) {
           console.log("Adding tracks to new playlist:", selectedTracks);
@@ -2800,7 +2918,6 @@ document.addEventListener("DOMContentLoaded", async () => {
               addedCount++;
             } catch (trackError) {
               console.error(`Could not add track ${track.id}:`, trackError);
-              // Continue adding other tracks
             }
           }
           
@@ -2813,7 +2930,10 @@ document.addEventListener("DOMContentLoaded", async () => {
           }
         }
 
-        showNotification("Playlist created successfully");
+        if (!uploadedImageFile && selectedTracks.length === 0) {
+          showNotification("Playlist created successfully");
+        }
+        
         closeModal();
         
         // Wait for backend to process, then reload

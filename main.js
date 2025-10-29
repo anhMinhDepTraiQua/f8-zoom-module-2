@@ -187,7 +187,8 @@ document.addEventListener("DOMContentLoaded", () => {
         // Close modal
         closeModal();
         loginErrorMessage.style.display = "none";
-
+        updateCurrentUser(user);
+        window.location.reload();
         console.log("Login successful");
       } catch (error) {
         console.error("Login failed:", error);
@@ -2054,44 +2055,59 @@ document.addEventListener("DOMContentLoaded", async () => {
       console.log("Playlists API response:", response);
       
       // Handle different response structures
-      let playlists = response.data?.playlists || 
-                     response.data?.data || 
-                     response.playlists || 
-                     response.data || 
-                     [];
+      currentPlaylists = response.data?.playlists || 
+                        response.data?.data || 
+                        response.playlists || 
+                        response.data || 
+                        [];
 
-      if (!Array.isArray(playlists)) {
-        console.error("Playlists is not an array:", playlists);
-        playlists = [];
+      if (!Array.isArray(currentPlaylists)) {
+        console.error("Playlists is not an array:", currentPlaylists);
+        currentPlaylists = [];
       }
 
-      // Fetch track count for each playlist
-      currentPlaylists = await Promise.all(
-        playlists.map(async (playlist) => {
-          try {
-            // Get track count
-            const tracksResponse = await httpRequest.get(`playlists/${playlist.id}/tracks`);
-            const tracks = tracksResponse.data?.tracks || tracksResponse.tracks || [];
-            
-            return {
-              ...playlist,
-              track_count: tracks.length
-            };
-          } catch (error) {
-            console.error(`Error fetching tracks for playlist ${playlist.id}:`, error);
-            return {
-              ...playlist,
-              track_count: 0
-            };
-          }
-        })
-      );
-
-      console.log("Playlists with track counts:", currentPlaylists);
+      console.log("Parsed playlists:", currentPlaylists);
+      
+      // Render immediately with default count
       renderPlaylists();
+      
+      // Then fetch track counts in background (don't await)
+      updatePlaylistTrackCounts();
     } catch (error) {
       console.error("Error loading playlists:", error);
       console.error("Error response:", error.response);
+      
+      // If unauthorized, user needs to login again
+      if (error.status === 401) {
+        console.log("Token expired, user needs to login again");
+        // Optionally clear token and show login
+        // localStorage.removeItem("access_token");
+        // localStorage.removeItem("currentuser");
+      }
+    }
+  }
+
+  // ==================== UPDATE TRACK COUNTS IN BACKGROUND ====================
+  async function updatePlaylistTrackCounts() {
+    for (const playlist of currentPlaylists) {
+      try {
+        const tracksResponse = await httpRequest.get(`playlists/${playlist.id}/tracks`);
+        const tracks = tracksResponse.data?.tracks || tracksResponse.tracks || [];
+        
+        // Update in memory
+        playlist.track_count = tracks.length;
+        
+        // Update UI
+        const sidebarItem = document.querySelector(`.library-item[data-playlist-id="${playlist.id}"]`);
+        if (sidebarItem) {
+          const subtitle = sidebarItem.querySelector(".item-subtitle");
+          if (subtitle) {
+            subtitle.innerHTML = `Playlist • <span class="track-count">${tracks.length}</span> song${tracks.length !== 1 ? 's' : ''}`;
+          }
+        }
+      } catch (error) {
+        console.error(`Error fetching tracks for playlist ${playlist.id}:`, error);
+      }
     }
   }
 

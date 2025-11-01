@@ -3019,3 +3019,435 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, 2000);
   }
 });
+
+
+// ==================== RECENT SORT FUNCTIONALITY ====================
+document.addEventListener("DOMContentLoaded", () => {
+  const sortBtn = document.querySelector(".sort-btn");
+  if (!sortBtn) return;
+
+  // Create sort modal
+  const sortModal = document.createElement("div");
+  sortModal.className = "sort-modal";
+  sortModal.style.display = "none";
+  sortModal.innerHTML = `
+    <div class="sort-modal-content">
+      <div class="sort-section">
+        <h4>Sort by</h4>
+        <button class="sort-option active" data-sort="recent">
+          <i class="fas fa-clock"></i>
+          <span>Recent</span>
+          <i class="fas fa-check sort-check"></i>
+        </button>
+        <button class="sort-option" data-sort="alphabetical">
+          <i class="fas fa-sort-alpha-down"></i>
+          <span>Alphabetical</span>
+          <i class="fas fa-check sort-check"></i>
+        </button>
+        <button class="sort-option" data-sort="creator">
+          <i class="fas fa-user"></i>
+          <span>Creator</span>
+          <i class="fas fa-check sort-check"></i>
+        </button>
+      </div>
+      <div class="sort-divider"></div>
+      <div class="sort-section">
+        <h4>View as</h4>
+        <button class="view-option active" data-view="list">
+          <i class="fas fa-list"></i>
+          <span>List</span>
+          <i class="fas fa-check sort-check"></i>
+        </button>
+        <button class="view-option" data-view="compact">
+          <i class="fas fa-grip-horizontal"></i>
+          <span>Compact</span>
+          <i class="fas fa-check sort-check"></i>
+        </button>
+        <button class="view-option" data-view="grid">
+          <i class="fas fa-th"></i>
+          <span>Grid</span>
+          <i class="fas fa-check sort-check"></i>
+        </button>
+      </div>
+    </div>
+  `;
+
+  // Insert modal after sort button
+  sortBtn.parentElement.appendChild(sortModal);
+
+  // State management
+  let currentSort = localStorage.getItem("playlist-sort") || "recent";
+  let currentView = localStorage.getItem("playlist-view") || "list";
+
+  // Update button text
+  function updateSortButtonText() {
+    const sortText = sortBtn.querySelector("span") || sortBtn.childNodes[0];
+    const sortLabels = {
+      recent: "Recents",
+      alphabetical: "A-Z",
+      creator: "Creator"
+    };
+    
+    if (sortText && sortText.nodeType === Node.TEXT_NODE) {
+      sortText.textContent = sortLabels[currentSort] || "Recents";
+    } else {
+      const textNode = Array.from(sortBtn.childNodes).find(node => node.nodeType === Node.TEXT_NODE);
+      if (textNode) {
+        textNode.textContent = sortLabels[currentSort] || "Recents";
+      }
+    }
+  }
+
+  // Toggle modal
+  sortBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const isVisible = sortModal.style.display === "block";
+    sortModal.style.display = isVisible ? "none" : "block";
+    
+    if (!isVisible) {
+      // Position modal below button
+      const rect = sortBtn.getBoundingClientRect();
+      sortModal.style.position = "absolute";
+      sortModal.style.top = `${rect.bottom + 8}px`;
+      sortModal.style.left = `${rect.left}px`;
+      sortModal.style.minWidth = `${rect.width}px`;
+    }
+  });
+
+  // Close modal when clicking outside
+  document.addEventListener("click", (e) => {
+    if (!sortModal.contains(e.target) && !sortBtn.contains(e.target)) {
+      sortModal.style.display = "none";
+    }
+  });
+
+  // Sort option handlers
+  sortModal.querySelectorAll(".sort-option").forEach((option) => {
+    option.addEventListener("click", () => {
+      const sortType = option.dataset.sort;
+      currentSort = sortType;
+      localStorage.setItem("playlist-sort", sortType);
+      
+      // Update active states
+      sortModal.querySelectorAll(".sort-option").forEach((opt) => {
+        opt.classList.remove("active");
+      });
+      option.classList.add("active");
+      
+      // Update button text
+      updateSortButtonText();
+      
+      // Apply sorting
+      applySortAndView();
+    });
+  });
+
+  // View option handlers
+  sortModal.querySelectorAll(".view-option").forEach((option) => {
+    option.addEventListener("click", () => {
+      const viewType = option.dataset.view;
+      currentView = viewType;
+      localStorage.setItem("playlist-view", viewType);
+      
+      // Update active states
+      sortModal.querySelectorAll(".view-option").forEach((opt) => {
+        opt.classList.remove("active");
+      });
+      option.classList.add("active");
+      
+      // Apply view
+      applySortAndView();
+    });
+  });
+
+  // Apply sorting and view changes
+  function applySortAndView() {
+    const libraryContent = document.querySelector(".library-content");
+    const playlistsContainer = libraryContent?.querySelector(".library-playlists");
+    if (!playlistsContainer) return;
+
+    // Get all playlist items (excluding Liked Songs)
+    const likedSongsItem = playlistsContainer.querySelector(".library-item");
+    const items = Array.from(playlistsContainer.querySelectorAll(".library-item")).filter(item => {
+      const title = item.querySelector(".item-title")?.textContent || "";
+      return !title.includes("Liked Songs");
+    });
+
+    // Sort items
+    items.sort((a, b) => {
+      const titleA = a.querySelector(".item-title")?.textContent || "";
+      const titleB = b.querySelector(".item-title")?.textContent || "";
+      
+      switch (currentSort) {
+        case "alphabetical":
+          return titleA.localeCompare(titleB);
+        case "creator":
+          // For now, sort by title since we don't have creator info
+          return titleA.localeCompare(titleB);
+        case "recent":
+        default:
+          // Keep original order (most recent first)
+          return 0;
+      }
+    });
+
+    // Clear container
+    playlistsContainer.innerHTML = "";
+    
+    // Apply view style to container
+    playlistsContainer.classList.remove("view-list", "view-compact", "view-grid");
+    playlistsContainer.classList.add(`view-${currentView}`);
+
+    // Re-append Liked Songs first
+    if (likedSongsItem) {
+      likedSongsItem.classList.remove("view-list", "view-compact", "view-grid");
+      likedSongsItem.classList.add(`view-${currentView}`);
+      playlistsContainer.appendChild(likedSongsItem);
+    }
+
+    // Append sorted items
+    items.forEach((item) => {
+      item.classList.remove("view-list", "view-compact", "view-grid");
+      item.classList.add(`view-${currentView}`);
+      playlistsContainer.appendChild(item);
+    });
+  }
+
+  // Initialize with saved preferences
+  const savedSortOption = sortModal.querySelector(`[data-sort="${currentSort}"]`);
+  const savedViewOption = sortModal.querySelector(`[data-view="${currentView}"]`);
+  
+  if (savedSortOption) {
+    sortModal.querySelectorAll(".sort-option").forEach(opt => opt.classList.remove("active"));
+    savedSortOption.classList.add("active");
+  }
+  
+  if (savedViewOption) {
+    sortModal.querySelectorAll(".view-option").forEach(opt => opt.classList.remove("active"));
+    savedViewOption.classList.add("active");
+  }
+
+  updateSortButtonText();
+  applySortAndView();
+});
+
+// ==================== SIDEBAR SEARCH FUNCTIONALITY ====================
+document.addEventListener("DOMContentLoaded", () => {
+  const searchLibraryBtn = document.querySelector(".search-library-btn");
+  const searchLibrary = document.querySelector(".search-library");
+  
+  if (!searchLibraryBtn || !searchLibrary) return;
+
+  // Create search input container
+  const searchInputContainer = document.createElement("div");
+  searchInputContainer.className = "sidebar-search-input-container";
+  searchInputContainer.style.display = "none";
+  searchInputContainer.innerHTML = `
+    <input 
+      type="text" 
+      class="sidebar-search-input" 
+      placeholder="Search in Your Library"
+      autocomplete="off"
+    />
+    <button class="sidebar-search-close">
+      <i class="fas fa-times"></i>
+    </button>
+  `;
+
+  // Insert after search library section
+  searchLibrary.parentElement.insertBefore(
+    searchInputContainer,
+    searchLibrary.nextSibling
+  );
+
+  const searchInput = searchInputContainer.querySelector(".sidebar-search-input");
+  const closeBtn = searchInputContainer.querySelector(".sidebar-search-close");
+
+  let isSearchOpen = false;
+  let originalContent = null;
+
+  // Toggle search input
+  searchLibraryBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    
+    if (!isSearchOpen) {
+      openSidebarSearch();
+    }
+  });
+
+  // Close search
+  closeBtn.addEventListener("click", () => {
+    closeSidebarSearch();
+  });
+
+  // Handle search input
+  let searchTimeout;
+  searchInput.addEventListener("input", (e) => {
+    clearTimeout(searchTimeout);
+    const query = e.target.value.trim().toLowerCase();
+
+    searchTimeout = setTimeout(() => {
+      performLibrarySearch(query);
+    }, 300);
+  });
+
+  // Close on Escape key
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && isSearchOpen) {
+      closeSidebarSearch();
+    }
+  });
+
+  function openSidebarSearch() {
+    isSearchOpen = true;
+    searchInputContainer.style.display = "flex";
+    searchLibraryBtn.classList.add("active");
+    searchInput.focus();
+
+    // Save original content
+    const libraryContent = document.querySelector(".library-content");
+    const playlistsContainer = libraryContent?.querySelector(".library-playlists");
+    const artistsContainer = libraryContent?.querySelector(".library-artists");
+    
+    if (playlistsContainer) {
+      originalContent = {
+        playlists: playlistsContainer.cloneNode(true),
+        artists: artistsContainer ? artistsContainer.cloneNode(true) : null
+      };
+    }
+  }
+
+  function closeSidebarSearch() {
+    isSearchOpen = false;
+    searchInputContainer.style.display = "none";
+    searchLibraryBtn.classList.remove("active");
+    searchInput.value = "";
+
+    // Restore original content
+    if (originalContent) {
+      const libraryContent = document.querySelector(".library-content");
+      const playlistsContainer = libraryContent?.querySelector(".library-playlists");
+      const artistsContainer = libraryContent?.querySelector(".library-artists");
+
+      if (playlistsContainer && originalContent.playlists) {
+        playlistsContainer.innerHTML = originalContent.playlists.innerHTML;
+      }
+
+      if (artistsContainer && originalContent.artists) {
+        artistsContainer.innerHTML = originalContent.artists.innerHTML;
+      }
+
+      originalContent = null;
+    }
+
+    // Reapply view settings
+    const currentView = localStorage.getItem("playlist-view") || "list";
+    const libraryContent = document.querySelector(".library-content");
+    const playlistsContainer = libraryContent?.querySelector(".library-playlists");
+    
+    if (playlistsContainer) {
+      playlistsContainer.classList.remove("view-list", "view-compact", "view-grid");
+      playlistsContainer.classList.add(`view-${currentView}`);
+
+      playlistsContainer.querySelectorAll(".library-item").forEach(item => {
+        item.classList.remove("view-list", "view-compact", "view-grid");
+        item.classList.add(`view-${currentView}`);
+      });
+    }
+  }
+
+  function performLibrarySearch(query) {
+    const libraryContent = document.querySelector(".library-content");
+    const playlistsContainer = libraryContent?.querySelector(".library-playlists");
+    const artistsContainer = libraryContent?.querySelector(".library-artists");
+
+    // Get active tab
+    const activeTab = document.querySelector(".nav-tab.active");
+    const isPlaylistTab = activeTab?.textContent.includes("Playlists");
+    const isArtistTab = activeTab?.textContent.includes("Artists");
+
+    if (query === "") {
+      // Show all items when search is empty
+      if (playlistsContainer) {
+        playlistsContainer.querySelectorAll(".library-item").forEach(item => {
+          item.style.display = "";
+        });
+      }
+
+      if (artistsContainer) {
+        artistsContainer.querySelectorAll(".library-item").forEach(item => {
+          item.style.display = "";
+        });
+      }
+      return;
+    }
+
+    // Search in playlists
+    if (isPlaylistTab && playlistsContainer) {
+      const items = playlistsContainer.querySelectorAll(".library-item");
+      let visibleCount = 0;
+
+      items.forEach(item => {
+        const title = item.querySelector(".item-title")?.textContent.toLowerCase() || "";
+        const subtitle = item.querySelector(".item-subtitle")?.textContent.toLowerCase() || "";
+
+        if (title.includes(query) || subtitle.includes(query)) {
+          item.style.display = "";
+          visibleCount++;
+        } else {
+          item.style.display = "none";
+        }
+      });
+
+      // Show "no results" message
+      let noResultsMsg = playlistsContainer.querySelector(".search-no-results");
+      if (visibleCount === 0) {
+        if (!noResultsMsg) {
+          noResultsMsg = document.createElement("div");
+          noResultsMsg.className = "search-no-results";
+          noResultsMsg.innerHTML = `
+            <i class="fas fa-search"></i>
+            <p>No playlists found for "${query}"</p>
+          `;
+          playlistsContainer.appendChild(noResultsMsg);
+        }
+      } else if (noResultsMsg) {
+        noResultsMsg.remove();
+      }
+    }
+
+    // Search in artists
+    if (isArtistTab && artistsContainer) {
+      const items = artistsContainer.querySelectorAll(".library-item");
+      let visibleCount = 0;
+
+      items.forEach(item => {
+        const name = item.querySelector(".item-title")?.textContent.toLowerCase() || "";
+        const type = item.querySelector(".item-subtitle")?.textContent.toLowerCase() || "";
+
+        if (name.includes(query) || type.includes(query)) {
+          item.style.display = "";
+          visibleCount++;
+        } else {
+          item.style.display = "none";
+        }
+      });
+
+      // Show "no results" message
+      let noResultsMsg = artistsContainer.querySelector(".search-no-results");
+      if (visibleCount === 0) {
+        if (!noResultsMsg) {
+          noResultsMsg = document.createElement("div");
+          noResultsMsg.className = "search-no-results";
+          noResultsMsg.innerHTML = `
+            <i class="fas fa-search"></i>
+            <p>No artists found for "${query}"</p>
+          `;
+          artistsContainer.appendChild(noResultsMsg);
+        }
+      } else if (noResultsMsg) {
+        noResultsMsg.remove();
+      }
+    }
+  }
+});

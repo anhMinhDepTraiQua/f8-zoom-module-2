@@ -351,3 +351,382 @@
   font-weight: 600;
   color: #fff;
 }
+/* ==================== SORT MODAL STYLES ==================== */
+.sort-modal {
+  position: fixed;
+  background: #282828;
+  border-radius: 4px;
+  box-shadow: 0 16px 24px rgba(0, 0, 0, 0.3), 0 6px 8px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  padding: 4px;
+  min-width: 200px;
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sort-modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.sort-section {
+  padding: 8px 0;
+}
+
+.sort-section h4 {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #b3b3b3;
+  padding: 8px 12px 4px;
+  letter-spacing: 0.1em;
+}
+
+.sort-option,
+.view-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  color: #b3b3b3;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 2px;
+  position: relative;
+}
+
+.sort-option:hover,
+.view-option:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.sort-option i:first-child,
+.view-option i:first-child {
+  width: 16px;
+  font-size: 16px;
+  text-align: center;
+}
+
+.sort-option span,
+.view-option span {
+  flex: 1;
+  text-align: left;
+}
+
+.sort-check {
+  opacity: 0;
+  font-size: 16px;
+  color: #1db954;
+  transition: opacity 0.2s;
+}
+
+.sort-option.active .sort-check,
+.view-option.active .sort-check {
+  opacity: 1;
+}
+
+.sort-option.active,
+.view-option.active {
+  color: white;
+}
+
+.sort-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 4px 0;
+}
+
+/* ==================== VIEW STYLES ==================== */
+
+/* Reset library content container */
+.library-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* List View (Default) */
+.library-content .library-item,
+.library-item.view-list {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.library-item .item-image {
+  width: 48px;
+  height: 48px;
+  border-radius: 4px;
+  object-fit: cover;
+  display: block;
+  flex-shrink: 0;
+}
+
+.library-item .item-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.library-item .item-title,
+.library-item .item-subtitle {
+  display: block;
+}
+
+/* Compact View (Icon only - horizontal grid) */
+.library-content.view-compact,
+.library-playlists.view-compact {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 0;
+  align-items: flex-start;
+  align-content: flex-start;
+}
+
+.library-item.view-compact {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+  cursor: pointer;
+  width: 56px;
+  flex-shrink: 0;
+}
+
+.library-item.view-compact .item-image {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  object-fit: cover;
+  display: block;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.library-item.view-compact:hover .item-image {
+  transform: scale(1.05);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+}
+
+.library-item.view-compact .item-info {
+  display: none;
+}
+
+.library-item.view-compact .playlist-menu-btn {
+  display: none;
+}
+
+/* Grid View (Text only) */
+.library-content.view-grid,
+.library-playlists.view-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+}
+
+.library-item.view-grid {
+  display: flex;
+  align-items: center;
+  padding: 12px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.library-item.view-grid:last-child {
+  border-bottom: none;
+}
+
+.library-item.view-grid .item-image {
+  display: none;
+}
+
+.library-item.view-grid .item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.library-item.view-grid .item-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.library-item.view-grid .item-subtitle {
+  font-size: 12px;
+  color: #b3b3b3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.library-item.view-grid .playlist-menu-btn {
+  flex-shrink: 0;
+}
+
+/* Hover effects for all views */
+.library-item:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.library-item.view-compact:hover {
+  background-color: transparent;
+}
+
+/* Active state */
+.library-item.active {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Sort button icon spacing */
+.sort-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sort-btn i {
+  font-size: 14px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .sort-modal {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto;
+    border-radius: 12px 12px 0 0;
+    min-width: 100%;
+  }
+  
+  .library-content.view-compact {
+    grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  }
+  
+  .library-item.view-compact .item-image {
+    width: 64px;
+    height: 64px;
+  }
+}
+
+/* ==================== SIDEBAR SEARCH STYLES ==================== */
+.sidebar-search-input-container {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  margin: 0 16px 12px;
+  animation: slideDown 0.2s ease;
+}
+
+.sidebar-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 14px;
+  outline: none;
+  padding: 4px 0;
+}
+
+.sidebar-search-input::placeholder {
+  color: #b3b3b3;
+}
+
+.sidebar-search-close {
+  background: transparent;
+  border: none;
+  color: #b3b3b3;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+  font-size: 16px;
+}
+
+.sidebar-search-close:hover {
+  color: white;
+}
+
+.search-library-btn.active {
+  color: #1db954;
+  background: rgba(29, 185, 84, 0.1);
+}
+
+/* No results message */
+.search-no-results {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+  color: #b3b3b3;
+  gap: 16px;
+}
+
+.search-no-results i {
+  font-size: 48px;
+  opacity: 0.5;
+}
+
+.search-no-results p {
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 200px;
+}
+
+/* Hide items during search */
+.library-item[style*="display: none"] {
+  display: none !important;
+}
+
+/* Adjust library content when search is active */
+.library-content {
+  position: relative;
+}
+
+/* Ensure search works with all view modes */
+.library-playlists .search-no-results,
+.library-artists .search-no-results {
+  width: 100%;
+  grid-column: 1 / -1; /* Span all columns in grid view */
+}
